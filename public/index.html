@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Simit Astana — Order</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Babel Standalone for in-browser JSX compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Import Map for ES Modules -->
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+      "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+    }
+  }
+  </script>
+</head>
+<body class="m-0 p-0 bg-[#FBF7EF]">
+  <div id="root"></div>
+
+  <script type="text/babel" data-type="module">
+    import React, { useState, useEffect, useRef, useMemo } from "react";
+    import { createRoot } from "react-dom/client";
+    import { Plus, Minus, X, Eye, MessageCircle, Send, ChevronDown, ShoppingBag, Check, Globe, AlertCircle } from "lucide-react";
+
+    /* ---------------------------------------------------------------------------
+       SIMIT ASTANA — customer ordering page
+       Menu comes from GET /api/menu (real data in Supabase).
+       Orders are placed via POST /api/orders (server validates prices).
+       Same-origin: this file is served by the Node server itself.
+    --------------------------------------------------------------------------- */
+    const C = {
+      bg: "#FBF7EF", ink: "#241C15", inkSoft: "#6B5F4F", accent: "#E7A93C",
+      accentDark: "#B9821F", brick: "#AE3B26", brickDark: "#8C2E1C", olive: "#5C6B35",
+      surface: "#FFFFFF", border: "#E6DBC8", chip: "#F2E8D6",
+    };
+
+    const serif = { fontFamily: "'Fraunces', 'Georgia', serif" };
+    const sans = { fontFamily: "'Inter', system-ui, sans-serif" };
+
+    const T = {
+      en: { appName: "Simit Astana", tagline: "Flavors of the Steppe & the Silk Road", tabOrder: "Order Form", tabMenu: "Menu", yourDetails: "Your details", name: "Name", tableNo: "Table No.", namePlaceholder: "e.g. Aigerim", tablePlaceholder: "e.g. 12", buildOrder: "Build your order", selectCategory: "Category", selectCategoryPlaceholder: "Choose a category", selectItem: "Item", selectItemPlaceholder: "Choose an item", view: "View", add: "Add", added: "Added to your order", yourOrder: "Your order", emptyCart: "No items yet — pick something above.", subtotal: "Subtotal", placeOrder: "Place order", placingOrder: "Sending to kitchen…", orderPlacedTitle: "Order sent to the kitchen", orderId: "Order ID", thankYou: "Thank you — we'll bring it to your table shortly.", newOrder: "Start a new order", menuOrderNow: "Order", menuAdd: "Add", menuView: "Details", quickOrderTitle: "Order this item", quickOrderDesc: "Just this one, sent straight to the kitchen.", quantity: "Quantity", confirmOrder: "Confirm order", cancel: "Cancel", chatTitle: "Simit", chatSubtitle: "Your ordering assistant", chatPlaceholder: "Type your order…", chatGreeting: "Merhaba! I'm Simit 🥯 — tell me what you'd like, e.g. \"2 manti and an ayran, table 7, I'm Aigerim\".", chatFallback: "I didn't catch a dish there. Try naming something from the menu.", chatNeedName: "What name should I put on the order?", chatNeedTable: "Which table are you sitting at?", chatAdded: (list) => `Added ${list} to your order.`, chatConfirmed: (id) => `Order placed! Your order ID is ${id}. It's on its way to the kitchen.`, chatMissingCart: "Tell me a dish first, then say \"place order\" when you're ready.", chatSend: "Send", languageLabel: "Language", table: "Table", loadingMenu: "Loading the menu…", menuLoadError: "Couldn't load the menu. Is the server running?", retry: "Retry", comingSoon: "Coming soon", orderFailed: "Couldn't place the order. Please try again." },
+      kk: { appName: "Simit Astana", tagline: "Дала мен Жібек жолының дәмдері", tabOrder: "Тапсырыс формасы", tabMenu: "Мәзір", yourDetails: "Сіздің деректеріңіз", name: "Аты-жөні", tableNo: "Үстел №", namePlaceholder: "мыс. Айгерім", tablePlaceholder: "мыс. 12", buildOrder: "Тапсырысты құрастыру", selectCategory: "Санат", selectCategoryPlaceholder: "Санатты таңдаңыз", selectItem: "Тағам", selectItemPlaceholder: "Тағамды таңдаңыз", view: "Көру", add: "Қосу", added: "Тапсырысқа қосылды", yourOrder: "Сіздің тапсырысыңыз", emptyCart: "Әзірге тағам жоқ — жоғарыдан таңдаңыз.", subtotal: "Аралық қорытынды", placeOrder: "Тапсырыс беру", placingOrder: "Асханаға жіберілуде…", orderPlacedTitle: "Тапсырыс асханаға жіберілді", orderId: "Тапсырыс №", thankYou: "Рахмет — жақын арада үстеліңізге әкелеміз.", newOrder: "Жаңа тапсырыс бастау", menuOrderNow: "Тапсырыс беру", menuAdd: "Қосу", menuView: "Толығырақ", quickOrderTitle: "Осы тағамға тапсырыс беру", quickOrderDesc: "Тек осы тағам, тікелей асханаға жіберіледі.", quantity: "Саны", confirmOrder: "Тапсырысты растау", cancel: "Бас тарту", chatTitle: "Симит", chatSubtitle: "Тапсырыс беру көмекшісі", chatPlaceholder: "Тапсырысыңызды жазыңыз…", chatGreeting: "Сәлем! Мен Симитпін 🥯 — не қалайтыныңызды айтыңыз.", chatFallback: "Тағамды таба алмадым. Мәзірден бір нәрсе атаңыз.", chatNeedName: "Тапсырысқа қандай атты жазайын?", chatNeedTable: "Қай үстелде отырсыз?", chatAdded: (list) => `${list} тапсырысыңызға қосылды.`, chatConfirmed: (id) => `Тапсырыс қабылданды! Тапсырыс нөмірі: ${id}.`, chatMissingCart: "Алдымен тағамды айтыңыз, дайын болғанда «тапсырыс беру» деп жазыңыз.", chatSend: "Жіберу", languageLabel: "Тіл", table: "Үстел", loadingMenu: "Мәзір жүктелуде…", menuLoadError: "Мәзірді жүктеу мүмкін болмады. Сервер іске қосулы ма?", retry: "Қайталау", comingSoon: "Жақында", orderFailed: "Тапсырысты орналастыру мүмкін болмады. Қайталап көріңіз." },
+      tr: { appName: "Simit Astana", tagline: "Bozkırın ve İpek Yolu'nun Lezzetleri", tabOrder: "Sipariş Formu", tabMenu: "Menü", yourDetails: "Bilgileriniz", name: "İsim", tableNo: "Masa No.", namePlaceholder: "örn. Aigerim", tablePlaceholder: "örn. 12", buildOrder: "Siparişinizi oluşturun", selectCategory: "Kategori", selectCategoryPlaceholder: "Bir kategori seçin", selectItem: "Ürün", selectItemPlaceholder: "Bir ürün seçin", view: "Görüntüle", add: "Ekle", added: "Siparişe eklendi", yourOrder: "Siparişiniz", emptyCart: "Henüz ürün yok — yukarıdan seçin.", subtotal: "Ara toplam", placeOrder: "Siparişi ver", placingOrder: "Mutfağa gönderiliyor…", orderPlacedTitle: "Sipariş mutfağa gönderildi", orderId: "Sipariş No.", thankYou: "Teşekkürler — kısa süre içinde masanıza getireceğiz.", newOrder: "Yeni sipariş başlat", menuOrderNow: "Sipariş ver", menuAdd: "Ekle", menuView: "Detaylar", quickOrderTitle: "Bu ürünü sipariş et", quickOrderDesc: "Sadece bu, doğrudan mutfağa gönderilir.", quantity: "Adet", confirmOrder: "Siparişi onayla", cancel: "Vazgeç", chatTitle: "Simit", chatSubtitle: "Sipariş asistanınız", chatPlaceholder: "Siparişinizi yazın…", chatGreeting: "Merhaba! Ben Simit 🥯 — ne istediğinizi söyleyin.", chatFallback: "Bir yemek anlayamadım. Menüden bir şey söyleyin.", chatNeedName: "Siparişe hangi ismi yazayım?", chatNeedTable: "Hangi masadasınız?", chatAdded: (list) => `${list} siparişinize eklendi.`, chatConfirmed: (id) => `Sipariş alındı! Sipariş numaranız: ${id}.`, chatMissingCart: "Önce bir yemek söyleyin, hazır olduğunuzda \"sipariş ver\" deyin.", chatSend: "Gönder", languageLabel: "Dil", table: "Masa", loadingMenu: "Menü yükleniyor…", menuLoadError: "Menü yüklenemedi. Sunucu çalışıyor mu?", retry: "Tekrar dene", comingSoon: "Yakında", orderFailed: "Sipariş verilemedi. Lütfen tekrar deneyin." },
+    };
+
+    const LANGS = [{ id: "en", label: "EN" }, { id: "kk", label: "QAZ" }, { id: "tr", label: "TR" }];
+    const CURRENCY = "₸";
+
+    function Stepper({ qty, onChange, min = 0 }) {
+      return (
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => onChange(Math.max(min, qty - 1))} className="w-7 h-7 rounded-full flex items-center justify-center transition" style={{ border: `1px solid ${C.border}`, color: C.ink }}>
+            <Minus size={14} />
+          </button>
+          <span className="w-5 text-center text-sm font-semibold" style={{ color: C.ink }}>{qty}</span>
+          <button type="button" onClick={() => onChange(qty + 1)} className="w-7 h-7 rounded-full flex items-center justify-center transition" style={{ background: C.ink, color: C.bg }}>
+            <Plus size={14} />
+          </button>
+        </div>
+      );
+    }
+
+    function Toast({ message }) {
+      if (!message) return null;
+      return (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 text-sm" style={{ background: C.ink, color: C.bg, ...sans }}>
+          <Check size={15} style={{ color: C.accent }} />
+          {message}
+        </div>
+      );
+    }
+
+    export default function App() {
+      const [lang, setLang] = useState("en");
+      const t = T[lang];
+      const [tab, setTab] = useState("order");
+
+      // Menu, fetched from the server (real Supabase data)
+      const [menu, setMenu] = useState([]);
+      const [menuLoading, setMenuLoading] = useState(true);
+      const [menuError, setMenuError] = useState("");
+
+      const [customerName, setCustomerName] = useState("");
+      const [tableNo, setTableNo] = useState("");
+      const [selectedCategory, setSelectedCategory] = useState("");
+      const [selectedItem, setSelectedItem] = useState("");
+      const [cart, setCart] = useState([]);
+      const [placedOrder, setPlacedOrder] = useState(null);
+      const [placing, setPlacing] = useState(false);
+      const [placeError, setPlaceError] = useState("");
+      const [detailItem, setDetailItem] = useState(null);
+      const [detailQty, setDetailQty] = useState(1);
+      const [quickOrderItem, setQuickOrderItem] = useState(null);
+      const [quickQty, setQuickQty] = useState(1);
+      const [quickName, setQuickName] = useState("");
+      const [quickTable, setQuickTable] = useState("");
+      const [quickPlaced, setQuickPlaced] = useState(null);
+      const [quickError, setQuickError] = useState("");
+      const [toast, setToast] = useState("");
+      const toastTimer = useRef(null);
+      const [chatOpen, setChatOpen] = useState(false);
+      const [chatMessages, setChatMessages] = useState(null);
+      const [chatInput, setChatInput] = useState("");
+      const [chatTyping, setChatTyping] = useState(false);
+      const chatEndRef = useRef(null);
+
+      function loadMenu() {
+        setMenuLoading(true);
+        setMenuError("");
+        fetch("/api/menu")
+          .then((res) => {
+            if (!res.ok) throw new Error("Request failed");
+            return res.json();
+          })
+          .then((data) => setMenu(data.categories || []))
+          .catch(() => setMenuError(t.menuLoadError))
+          .finally(() => setMenuLoading(false));
+      }
+
+      useEffect(() => { loadMenu(); }, []);
+
+      useEffect(() => {
+        if (!toast) return;
+        clearTimeout(toastTimer.current);
+        toastTimer.current = setTimeout(() => setToast(""), 2000);
+        return () => clearTimeout(toastTimer.current);
+      }, [toast]);
+
+      useEffect(() => {
+        if (chatOpen && chatMessages === null) {
+          setChatMessages([{ from: "bot", text: t.chatGreeting }]);
+        }
+      }, [chatOpen]);
+
+      useEffect(() => {
+        if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }, [chatMessages, chatTyping]);
+
+      // Flatten all items across categories, and only ones available to order.
+      const allItems = useMemo(
+        () => menu.flatMap((cat) => cat.items.map((i) => ({ ...i, categoryId: cat.id }))),
+        [menu]
+      );
+      const itemById = (id) => allItems.find((i) => i.id === id);
+
+      const cartLines = useMemo(
+        () => cart.map((c) => ({ ...c, item: itemById(c.id) })).filter((c) => c.item),
+        [cart, allItems]
+      );
+      const subtotal = cartLines.reduce((s, c) => s + c.item.price * c.qty, 0);
+      const cartCount = cart.reduce((s, c) => s + c.qty, 0);
+
+      function addToCart(id, qty = 1) {
+        setCart((prev) => {
+          const found = prev.find((c) => c.id === id);
+          if (found) return prev.map((c) => (c.id === id ? { ...c, qty: c.qty + qty } : c));
+          return [...prev, { id, qty }];
+        });
+        setToast(t.added);
+      }
+
+      function changeQty(id, qty) {
+        setCart((prev) => (qty <= 0 ? prev.filter((c) => c.id !== id) : prev.map((c) => (c.id === id ? { ...c, qty } : c))));
+      }
+
+      async function placeOrder() {
+        if (!customerName.trim() || !tableNo.trim() || cartLines.length === 0) return;
+        setPlacing(true);
+        setPlaceError("");
+        try {
+          const res = await fetch("/api/orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customerName,
+              tableNo,
+              lang,
+              items: cartLines.map((c) => ({ productId: c.id, quantity: c.qty })),
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Order failed");
+
+          setPlacedOrder({
+            id: data.order.order_code,
+            name: customerName,
+            table: tableNo,
+            items: data.order.items.map((it) => ({ name: it.product_name, qty: it.quantity, price: it.unit_price })),
+            total: data.order.total,
+          });
+          setCart([]);
+        } catch (err) {
+          setPlaceError(t.orderFailed);
+        } finally {
+          setPlacing(false);
+        }
+      }
+
+      function resetOrder() {
+        setPlacedOrder(null);
+        setSelectedCategory("");
+        setSelectedItem("");
+        setPlaceError("");
+      }
+
+      function openDetails(item) {
+        setDetailItem(item);
+        setDetailQty(1);
+      }
+
+      function openQuickOrder(item) {
+        setQuickOrderItem(item);
+        setQuickQty(1);
+        setQuickName(customerName);
+        setQuickTable(tableNo);
+        setQuickPlaced(null);
+        setQuickError("");
+      }
+
+      async function confirmQuickOrder() {
+        if (!quickName.trim() || !quickTable.trim() || !quickOrderItem) return;
+        setQuickError("");
+        try {
+          const res = await fetch("/api/orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              customerName: quickName,
+              tableNo: quickTable,
+              lang,
+              items: [{ productId: quickOrderItem.id, quantity: quickQty }],
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Order failed");
+
+          setQuickPlaced({
+            id: data.order.order_code,
+            name: quickName,
+            table: quickTable,
+            items: data.order.items.map((it) => ({ name: it.product_name, qty: it.quantity, price: it.unit_price })),
+            total: data.order.total,
+          });
+        } catch (err) {
+          setQuickError(t.orderFailed);
+        }
+      }
+
+      function findItemsInText(text) {
+        const lower = text.toLowerCase();
+        return allItems.filter(
+          (item) =>
+            !item.coming_soon &&
+            [item.name.en, item.name.kk, item.name.tr].some((n) => n && lower.includes(n.toLowerCase()))
+        );
+      }
+
+      function extractQty(text) {
+        const m = text.match(/\b(\d{1,2})\b/);
+        return m ? Math.max(1, parseInt(m[1], 10)) : 1;
+      }
+
+      function extractName(text) {
+        const m = text.match(/(?:my name is|name is|i am|i'm|мен\s|men|isim|ismim|adım)\s*[:\-]?\s*([a-zA-Zа-яәғқңөұүhÜĞŞİÖÇığşöçü]{2,20})/i);
+        return m ? m[1].trim().replace(/^\w/, (c) => c.toUpperCase()) : null;
+      }
+
+      function extractTable(text) {
+        const m = text.match(/(?:table|masa|үстел|стол)\D{0,4}(\d{1,3})/i) || text.match(/\b(\d{1,3})\D{0,4}(?:table|masa|үстел|стол)/i);
+        return m ? m[1] : null;
+      }
+
+      function isPlaceOrderCommand(text) {
+        return /(place|confirm|finalize|send)\s*(my\s*)?order|тапсырыс\s*бер|siparişi?\s*(ver|onayla)/i.test(text);
+      }
+
+      async function handleChatSend() {
+        const text = chatInput.trim();
+        if (!text) return;
+        setChatMessages((prev) => [...prev, { from: "user", text }]);
+        setChatInput("");
+        setChatTyping(true);
+
+        const matches = findItemsInText(text);
+        const nameFound = extractName(text);
+        const tableFound = extractTable(text);
+        if (nameFound) setCustomerName(nameFound);
+        if (tableFound) setTableNo(tableFound);
+
+        let reply = "";
+        if (matches.length > 0) {
+          const qty = extractQty(text);
+          matches.forEach((m) => addToCart(m.id, qty));
+          const list = matches.map((m) => `${qty}× ${m.name[lang]}`).join(", ");
+          reply += t.chatAdded(list);
+        }
+
+        if (isPlaceOrderCommand(text)) {
+          const finalName = nameFound || customerName;
+          const finalTable = tableFound || tableNo;
+          // cartLines reflects state before this render's addToCart calls land,
+          // so fold in anything just matched in this message too.
+          const pendingLines =
+            matches.length > 0
+              ? matches.map((m) => ({ id: m.id, qty: extractQty(text) }))
+              : cart;
+          const hasCart = pendingLines.length > 0;
+
+          if (!hasCart) {
+            reply = (reply ? reply + " " : "") + t.chatMissingCart;
+          } else if (!finalName.trim()) {
+            reply = (reply ? reply + " " : "") + t.chatNeedName;
+          } else if (!finalTable.trim()) {
+            reply = (reply ? reply + " " : "") + t.chatNeedTable;
+          } else {
+            try {
+              const res = await fetch("/api/orders", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  customerName: finalName,
+                  tableNo: finalTable,
+                  lang,
+                  items: pendingLines.map((l) => ({ productId: l.id, quantity: l.qty })),
+                }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || "Order failed");
+
+              setPlacedOrder({
+                id: data.order.order_code,
+                name: finalName,
+                table: finalTable,
+                items: data.order.items.map((it) => ({ name: it.product_name, qty: it.quantity, price: it.unit_price })),
+                total: data.order.total,
+              });
+              setCart([]);
+              setCustomerName(finalName);
+              setTableNo(finalTable);
+              setTab("order");
+              reply = (reply ? reply + " " : "") + t.chatConfirmed(data.order.order_code);
+            } catch (err) {
+              reply = (reply ? reply + " " : "") + t.orderFailed;
+            }
+          }
+        }
+
+        if (!reply) reply = t.chatFallback;
+        setChatTyping(false);
+        setChatMessages((prev) => [...prev, { from: "bot", text: reply }]);
+      }
+
+      const selectedCategoryItems = menu.find((c) => c.id === selectedCategory)?.items || [];
+
+      return (
+        <div className="min-h-screen w-full" style={{ background: C.bg, ...sans }}>
+          <style>{`
+            @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
+            * { box-sizing: border-box; }
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+            .ticket-divider { height: 1px; background-image: repeating-linear-gradient(to right, ${C.border} 0 6px, transparent 6px 12px); }
+            select:focus, input:focus, textarea:focus { outline: 2px solid ${C.accent}; outline-offset: 1px; }
+            button:focus-visible { outline: 2px solid ${C.accentDark}; outline-offset: 2px; }
+            @keyframes fadeUp { from { opacity: 0; transform: translateY(8px);} to { opacity:1; transform:translateY(0);} }
+            .fade-up { animation: fadeUp .22s ease-out; }
+            @keyframes bounceDot { 0%,80%,100% { transform: translateY(0);} 40% { transform: translateY(-4px);} }
+            .dot { animation: bounceDot 1.1s infinite; }
+          `}</style>
+
+          <Toast message={toast} />
+
+          <header className="sticky top-0 z-30" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
+            <div className="max-w-3xl mx-auto px-5 pt-5 pb-3 flex items-start justify-between gap-4">
+              <div>
+                <h1 className="text-3xl leading-none" style={{ ...serif, color: C.ink, fontWeight: 600 }}>{t.appName}</h1>
+                <p className="text-sm mt-1" style={{ color: C.inkSoft }}>{t.tagline}</p>
+              </div>
+              <div className="flex items-center gap-1 rounded-full p-1 shrink-0" style={{ background: C.chip }}>
+                <Globe size={14} style={{ color: C.inkSoft, marginLeft: 6 }} />
+                {LANGS.map((l) => (
+                  <button key={l.id} onClick={() => setLang(l.id)} className="text-xs font-semibold px-2.5 py-1.5 rounded-full transition" style={{ background: lang === l.id ? C.ink : "transparent", color: lang === l.id ? C.bg : C.inkSoft }}>
+                    {l.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="max-w-3xl mx-auto px-5 flex gap-2">
+              {[{ id: "order", label: t.tabOrder }, { id: "menu", label: t.tabMenu }].map((tabDef) => (
+                <button key={tabDef.id} onClick={() => setTab(tabDef.id)} className="relative px-4 py-2.5 text-sm font-semibold rounded-t-xl transition" style={{ color: tab === tabDef.id ? C.ink : C.inkSoft, background: tab === tabDef.id ? C.surface : "transparent", border: tab === tabDef.id ? `1px solid ${C.border}` : "1px solid transparent", borderBottom: tab === tabDef.id ? `1px solid ${C.surface}` : "none", marginBottom: "-1px" }}>
+                  {tabDef.label}
+                  {tabDef.id === "order" && cartCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center" style={{ background: C.brick, color: C.bg }}>{cartCount}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </header>
+
+          <main className="max-w-3xl mx-auto px-5 pb-32 pt-6">
+            {menuLoading ? (
+              <div className="py-16 text-center text-sm" style={{ color: C.inkSoft }}>{t.loadingMenu}</div>
+            ) : menuError ? (
+              <div className="py-16 text-center">
+                <AlertCircle size={22} style={{ color: C.brick, margin: "0 auto 8px" }} />
+                <p className="text-sm mb-3" style={{ color: C.inkSoft }}>{menuError}</p>
+                <button onClick={loadMenu} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: C.ink, color: C.bg }}>{t.retry}</button>
+              </div>
+            ) : tab === "order" ? (
+              placedOrder ? (
+                <OrderConfirmation t={t} order={placedOrder} onReset={resetOrder} />
+              ) : (
+                <div className="space-y-5 fade-up">
+                  <section className="rounded-2xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                    <h2 className="text-lg mb-3" style={{ ...serif, color: C.ink, fontWeight: 600 }}>{t.yourDetails}</h2>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label={t.name}>
+                        <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder={t.namePlaceholder} className="w-full rounded-lg px-3 py-2 text-sm" style={{ border: `1px solid ${C.border}`, color: C.ink }} />
+                      </Field>
+                      <Field label={t.tableNo}>
+                        <input value={tableNo} onChange={(e) => setTableNo(e.target.value)} placeholder={t.tablePlaceholder} className="w-full rounded-lg px-3 py-2 text-sm" style={{ border: `1px solid ${C.border}`, color: C.ink }} />
+                      </Field>
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                    <h2 className="text-lg mb-3" style={{ ...serif, color: C.ink, fontWeight: 600 }}>{t.buildOrder}</h2>
+                    <div className="space-y-3">
+                      <Field label={t.selectCategory}>
+                        <SelectBox value={selectedCategory} onChange={(v) => { setSelectedCategory(v); setSelectedItem(""); }} placeholder={t.selectCategoryPlaceholder} options={menu.map((c) => ({ value: c.id, label: `${c.icon || ""}  ${c.name[lang]}` }))} />
+                      </Field>
+                      <Field label={t.selectItem}>
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <SelectBox value={selectedItem} onChange={setSelectedItem} placeholder={t.selectItemPlaceholder} disabled={!selectedCategory} options={selectedCategoryItems.filter((i) => !i.coming_soon).map((i) => ({ value: i.id, label: `${i.emoji || ""}  ${i.name[lang]} — ${CURRENCY}${i.price}` }))} />
+                          </div>
+                          <button type="button" disabled={!selectedItem} onClick={() => openDetails(itemById(selectedItem))} className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0 disabled:opacity-40" style={{ border: `1px solid ${C.border}`, color: C.ink }} aria-label={t.view}>
+                            <Eye size={17} />
+                          </button>
+                          <button type="button" disabled={!selectedItem} onClick={() => { addToCart(selectedItem, 1); setSelectedItem(""); }} className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0 disabled:opacity-40" style={{ background: C.ink, color: C.bg }} aria-label={t.add}>
+                            <Plus size={18} />
+                          </button>
+                        </div>
+                      </Field>
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                    <h2 className="text-lg mb-3 flex items-center gap-2" style={{ ...serif, color: C.ink, fontWeight: 600 }}>
+                      <ShoppingBag size={18} /> {t.yourOrder}
+                    </h2>
+                    {cartLines.length === 0 ? (
+                      <p className="text-sm py-4 text-center" style={{ color: C.inkSoft }}>{t.emptyCart}</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {cartLines.map((c) => (
+                          <div key={c.id}>
+                            <div className="flex items-center justify-between gap-3 py-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-xl">{c.item.emoji}</span>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium truncate" style={{ color: C.ink }}>{c.item.name[lang]}</p>
+                                  <p className="text-xs" style={{ color: C.inkSoft }}>{CURRENCY}{c.item.price} × {c.qty}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <Stepper qty={c.qty} onChange={(q) => changeQty(c.id, q)} />
+                                <button onClick={() => changeQty(c.id, 0)} style={{ color: C.inkSoft }} aria-label="remove">
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="ticket-divider mt-2" />
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-sm font-semibold" style={{ color: C.ink }}>{t.subtotal}</span>
+                          <span className="text-lg" style={{ ...serif, color: C.brick, fontWeight: 600 }}>{CURRENCY}{subtotal}</span>
+                        </div>
+                      </div>
+                    )}
+                    <button disabled={cartLines.length === 0 || !customerName.trim() || !tableNo.trim() || placing} onClick={placeOrder} className="w-full mt-4 rounded-xl py-3 text-sm font-semibold transition disabled:opacity-40" style={{ background: C.brick, color: C.bg }}>
+                      {placing ? t.placingOrder : t.placeOrder}
+                    </button>
+                    {placeError && <p className="text-xs mt-2 text-center" style={{ color: C.brick }}>{placeError}</p>}
+                    {(!customerName.trim() || !tableNo.trim()) && cartLines.length > 0 && (
+                      <p className="text-xs mt-2 text-center" style={{ color: C.inkSoft }}>{t.yourDetails} — {t.name} / {t.tableNo}</p>
+                    )}
+                  </section>
+                </div>
+              )
+            ) : (
+              <MenuTab t={t} lang={lang} menu={menu} onView={openDetails} onAdd={(id) => addToCart(id, 1)} onQuickOrder={openQuickOrder} />
+            )}
+          </main>
+
+          {detailItem && (
+            <Modal onClose={() => setDetailItem(null)}>
+              <div className="text-center">
+                <div className="text-6xl mb-3">{detailItem.emoji}</div>
+                <h3 className="text-2xl mb-1" style={{ ...serif, color: C.ink, fontWeight: 600 }}>{detailItem.name[lang]}</h3>
+                <p className="text-lg mb-3" style={{ color: C.brick, ...serif, fontWeight: 600 }}>{CURRENCY}{detailItem.price}{detailItem.weight_note ? ` / ${detailItem.weight_note}` : ""}</p>
+                <p className="text-sm leading-relaxed mb-5" style={{ color: C.inkSoft }}>{detailItem.description?.[lang]}</p>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <Stepper qty={detailQty} onChange={(q) => setDetailQty(Math.max(1, q))} min={1} />
+                <button onClick={() => { addToCart(detailItem.id, detailQty); setDetailItem(null); }} className="flex-1 rounded-xl py-3 text-sm font-semibold" style={{ background: C.ink, color: C.bg }}>
+                  {t.add} · {CURRENCY}{detailItem.price * detailQty}
+                </button>
+              </div>
+            </Modal>
+          )}
+
+          {quickOrderItem && (
+            <Modal onClose={() => setQuickOrderItem(null)}>
+              {quickPlaced ? (
+                <OrderConfirmation t={t} order={quickPlaced} compact onReset={() => setQuickOrderItem(null)} />
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-4xl">{quickOrderItem.emoji}</span>
+                    <div>
+                      <h3 className="text-lg" style={{ ...serif, color: C.ink, fontWeight: 600 }}>{t.quickOrderTitle}</h3>
+                      <p className="text-xs" style={{ color: C.inkSoft }}>{t.quickOrderDesc}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3 mb-4">
+                    <Field label={t.name}>
+                      <input value={quickName} onChange={(e) => setQuickName(e.target.value)} placeholder={t.namePlaceholder} className="w-full rounded-lg px-3 py-2 text-sm" style={{ border: `1px solid ${C.border}`, color: C.ink }} />
+                    </Field>
+                    <Field label={t.tableNo}>
+                      <input value={quickTable} onChange={(e) => setQuickTable(e.target.value)} placeholder={t.tablePlaceholder} className="w-full rounded-lg px-3 py-2 text-sm" style={{ border: `1px solid ${C.border}`, color: C.ink }} />
+                    </Field>
+                    <Field label={t.quantity}>
+                      <Stepper qty={quickQty} onChange={(q) => setQuickQty(Math.max(1, q))} min={1} />
+                    </Field>
+                  </div>
+                  {quickError && <p className="text-xs mb-3 text-center" style={{ color: C.brick }}>{quickError}</p>}
+                  <div className="flex gap-2">
+                    <button onClick={() => setQuickOrderItem(null)} className="flex-1 rounded-xl py-3 text-sm font-semibold" style={{ border: `1px solid ${C.border}`, color: C.ink }}>{t.cancel}</button>
+                    <button disabled={!quickName.trim() || !quickTable.trim()} onClick={confirmQuickOrder} className="flex-1 rounded-xl py-3 text-sm font-semibold disabled:opacity-40" style={{ background: C.brick, color: C.bg }}>
+                      {t.confirmOrder} · {CURRENCY}{quickOrderItem.price * quickQty}
+                    </button>
+                  </div>
+                </>
+              )}
+            </Modal>
+          )}
+
+          <button onClick={() => setChatOpen((o) => !o)} className="fixed bottom-6 right-6 z-40 w-16 h-16 rounded-full shadow-xl flex items-center justify-center text-2xl" style={{ background: C.accent, border: `3px solid ${C.surface}` }} aria-label={t.chatTitle}>
+            {chatOpen ? <X size={24} color={C.ink} /> : "🥯"}
+          </button>
+
+          {chatOpen && (
+            <div className="fixed z-40 inset-x-4 bottom-24 sm:left-auto sm:right-6 sm:w-96 rounded-2xl shadow-2xl flex flex-col overflow-hidden fade-up" style={{ background: C.surface, border: `1px solid ${C.border}`, height: "70vh", maxHeight: 520 }}>
+              <div className="px-4 py-3 flex items-center gap-3" style={{ background: C.ink }}>
+                <span className="text-2xl">🥯</span>
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: C.bg }}>{t.chatTitle}</p>
+                  <p className="text-xs" style={{ color: "#C9BFAE" }}>{t.chatSubtitle}</p>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-3 space-y-3">
+                {(chatMessages || []).map((m, idx) => (
+                  <div key={idx} className={`flex ${m.from === "user" ? "justify-end" : "justify-start"}`}>
+                    <div className="max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed" style={m.from === "user" ? { background: C.accent, color: C.ink, borderBottomRightRadius: 4 } : { background: C.chip, color: C.ink, borderBottomLeftRadius: 4 }}>
+                      {m.text}
+                    </div>
+                  </div>
+                ))}
+                {chatTyping && (
+                  <div className="flex justify-start">
+                    <div className="rounded-2xl px-4 py-3 flex gap-1" style={{ background: C.chip, borderBottomLeftRadius: 4 }}>
+                      <span className="w-1.5 h-1.5 rounded-full dot" style={{ background: C.inkSoft, animationDelay: "0s" }} />
+                      <span className="w-1.5 h-1.5 rounded-full dot" style={{ background: C.inkSoft, animationDelay: ".15s" }} />
+                      <span className="w-1.5 h-1.5 rounded-full dot" style={{ background: C.inkSoft, animationDelay: ".3s" }} />
+                    </div>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+              <div className="p-3 flex items-center gap-2" style={{ borderTop: `1px solid ${C.border}` }}>
+                <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleChatSend()} placeholder={t.chatPlaceholder} className="flex-1 rounded-full px-4 py-2.5 text-sm" style={{ border: `1px solid ${C.border}`, color: C.ink }} />
+                <button onClick={handleChatSend} disabled={!chatInput.trim()} className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 disabled:opacity-40" style={{ background: C.ink, color: C.bg }} aria-label={t.chatSend}>
+                  <Send size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function Field({ label, children }) {
+      return (
+        <label className="block">
+          <span className="block text-xs font-semibold mb-1.5" style={{ color: C.inkSoft }}>{label}</span>
+          {children}
+        </label>
+      );
+    }
+
+    function SelectBox({ value, onChange, options, placeholder, disabled }) {
+      return (
+        <div className="relative">
+          <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} className="w-full appearance-none rounded-lg px-3 py-2.5 text-sm pr-9 disabled:opacity-40" style={{ border: `1px solid ${C.border}`, color: value ? C.ink : C.inkSoft, background: C.surface }}>
+            <option value="">{placeholder}</option>
+            {options.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+          </select>
+          <ChevronDown size={15} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.inkSoft }} />
+        </div>
+      );
+    }
+
+    function Modal({ children, onClose }) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" style={{ background: "rgba(36,28,21,0.55)" }} onClick={onClose}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 relative fade-up" style={{ background: C.surface, maxHeight: "90vh", overflowY: "auto" }}>
+            <button onClick={onClose} className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: C.chip, color: C.ink }}>
+              <X size={16} />
+            </button>
+            {children}
+          </div>
+        </div>
+      );
+    }
+
+    function OrderConfirmation({ t, order, onReset, compact }) {
+      return (
+        <div className={compact ? "text-center py-2" : "rounded-2xl p-8 text-center fade-up"} style={compact ? {} : { background: C.surface, border: `1px solid ${C.border}` }}>
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: "#E9EEDB" }}>
+            <Check size={26} style={{ color: C.olive }} />
+          </div>
+          <h2 className="text-xl mb-1" style={{ ...serif, color: C.ink, fontWeight: 600 }}>{t.orderPlacedTitle}</h2>
+          <p className="text-sm mb-4" style={{ color: C.inkSoft }}>{t.thankYou}</p>
+          <div className="rounded-xl p-4 mx-auto max-w-xs text-left" style={{ background: C.chip }}>
+            <div className="flex justify-between text-xs mb-2" style={{ color: C.inkSoft }}>
+              <span>{t.orderId}</span>
+              <span className="font-mono font-semibold" style={{ color: C.ink }}>{order.id}</span>
+            </div>
+            <div className="ticket-divider mb-2" />
+            {order.items.map((it, i) => (
+              <div key={i} className="flex justify-between text-sm py-0.5" style={{ color: C.ink }}>
+                <span>{it.qty}× {it.name}</span>
+                <span>{CURRENCY}{it.price * it.qty}</span>
+              </div>
+            ))}
+            <div className="ticket-divider my-2" />
+            <div className="flex justify-between text-sm font-semibold" style={{ color: C.ink }}>
+              <span>{t.subtotal}</span>
+              <span>{CURRENCY}{order.total}</span>
+            </div>
+          </div>
+          <button onClick={onReset} className="mt-5 rounded-xl px-6 py-2.5 text-sm font-semibold" style={{ background: C.ink, color: C.bg }}>
+            {t.newOrder}
+          </button>
+        </div>
+      );
+    }
+
+    function MenuTab({ t, lang, menu, onView, onAdd, onQuickOrder }) {
+      return (
+        <div className="fade-up">
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-4 mb-2">
+            {menu.map((cat) => (
+              <a key={cat.id} href={`#cat-${cat.id}`} className="shrink-0 text-xs font-semibold px-3.5 py-2 rounded-full whitespace-nowrap" style={{ background: C.chip, color: C.ink }}>
+                {cat.icon} {cat.name[lang]}
+              </a>
+            ))}
+          </div>
+          {menu.map((cat) => (
+            <section key={cat.id} id={`cat-${cat.id}`} className="mb-8 scroll-mt-32">
+              <h2 className="text-xl mb-3 flex items-center gap-2" style={{ ...serif, color: C.ink, fontWeight: 600 }}>
+                <span>{cat.icon}</span> {cat.name[lang]}
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {cat.items.map((item) => (
+                  <div key={item.id} className="rounded-2xl p-4 flex flex-col" style={{ background: C.surface, border: `1px solid ${C.border}`, opacity: item.coming_soon ? 0.55 : 1 }}>
+                    <div className="flex items-start gap-3 mb-2">
+                      <div className="text-3xl w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: C.chip }}>
+                        {item.emoji}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold" style={{ color: C.ink }}>{item.name[lang]}</p>
+                        {item.coming_soon ? (
+                          <p className="text-xs font-semibold" style={{ color: C.accentDark }}>{t.comingSoon}</p>
+                        ) : (
+                          <p className="text-sm" style={{ ...serif, color: C.brick, fontWeight: 600 }}>{CURRENCY}{item.price}{item.weight_note ? ` / ${item.weight_note}` : ""}</p>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs leading-relaxed mb-3 line-clamp-2" style={{ color: C.inkSoft }}>{item.description?.[lang]}</p>
+                    <div className="flex gap-2 mt-auto">
+                      <button onClick={() => onView(item)} className="flex-1 rounded-lg py-2 text-xs font-semibold" style={{ border: `1px solid ${C.border}`, color: C.ink }}>
+                        {t.menuView}
+                      </button>
+                      <button disabled={item.coming_soon} onClick={() => onAdd(item.id)} className="w-9 rounded-lg flex items-center justify-center disabled:opacity-40" style={{ background: C.chip, color: C.ink }} aria-label={t.menuAdd}>
+                        <Plus size={15} />
+                      </button>
+                      <button disabled={item.coming_soon} onClick={() => onQuickOrder(item)} className="flex-1 rounded-lg py-2 text-xs font-semibold disabled:opacity-40" style={{ background: C.brick, color: C.bg }}>
+                        {t.menuOrderNow}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      );
+    }
+
+    const root = createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
