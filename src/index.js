@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import "dotenv/config";
 import menuRouter from "./routes/menu.js";
 import ordersRouter from "./routes/orders.js";
+import uploadRouter from "./routes/upload.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -16,6 +17,9 @@ app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 app.use("/api/menu", menuRouter);
 app.use("/api/orders", ordersRouter);
+// Base64 image payloads run bigger than express.json()'s 100kb default, so
+// this route gets its own limit rather than raising it globally.
+app.use("/api/upload", express.json({ limit: "40mb" }), uploadRouter);
 
 // Serve the customer-facing frontend (public/index.html) at the root,
 // same-origin as the API - so fetch("/api/menu") just works with no
