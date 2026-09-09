@@ -264,7 +264,7 @@
 
       return (
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div className="flex gap-2 flex-wrap">
               <FilterPill active={filter === ""} onClick={() => setFilter("")}>All</FilterPill>
               {STATUS_ORDER.map((s) => (
@@ -273,7 +273,7 @@
                 </FilterPill>
               ))}
             </div>
-            <button onClick={load} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+            <button onClick={load} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg self-start sm:self-auto" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
               <RefreshCw size={14} /> Refresh
             </button>
           </div>
@@ -350,19 +350,19 @@
                 <p className="text-xs mt-1 italic" style={{ color: C.brick }}>Reason: {order.cancellation_reason}</p>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto">
               <span className="text-sm font-semibold" style={{ color: C.ink }}>{CURRENCY}{order.total}</span>
               {nextStatus && (
-                <button onClick={() => onAdvance(order, nextStatus)} className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: C.olive, color: "#fff" }}>
+                <button onClick={() => onAdvance(order, nextStatus)} className="text-xs font-semibold px-3 py-2 rounded-lg" style={{ background: C.olive, color: "#fff" }}>
                   {NEXT_LABEL[order.status]}
                 </button>
               )}
               {(order.status === "on_queue" || order.status === "preparing") && (
-                <button onClick={onCancel} className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ border: `1px solid ${C.brick}`, color: C.brick }}>
+                <button onClick={onCancel} className="text-xs font-semibold px-3 py-2 rounded-lg" style={{ border: `1px solid ${C.brick}`, color: C.brick }}>
                   Cancel
                 </button>
               )}
-              <button onClick={() => setOpen((v) => !v)} className="p-1.5 rounded-lg" style={{ color: C.inkSoft }}>
+              <button onClick={() => setOpen((v) => !v)} className="p-2 rounded-lg" style={{ color: C.inkSoft }}>
                 {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </button>
             </div>
@@ -476,14 +476,14 @@
             </div>
             <div className="grid gap-2">
               {categories.map((cat) => (
-                <div key={cat.id} className="flex items-center justify-between rounded-lg px-4 py-2.5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
-                  <div className="flex items-center gap-2">
-                    <span>{cat.icon || "📁"}</span>
-                    <span className="text-sm font-medium" style={{ color: C.ink }}>{cat.name?.en || cat.slug}</span>
-                    <span className="text-xs" style={{ color: C.inkSoft }}>({cat.slug})</span>
-                    {!cat.active && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.chip, color: C.inkSoft }}>inactive</span>}
+                <div key={cat.id} className="flex items-center justify-between gap-3 rounded-lg px-4 py-2.5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                    <span className="flex-shrink-0">{cat.icon || "📁"}</span>
+                    <span className="text-sm font-medium truncate" style={{ color: C.ink }}>{cat.name?.en || cat.slug}</span>
+                    <span className="text-xs flex-shrink-0" style={{ color: C.inkSoft }}>({cat.slug})</span>
+                    {!cat.active && <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: C.chip, color: C.inkSoft }}>inactive</span>}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     <IconBtn onClick={() => setCategoryModal({ mode: "edit", category: cat })}><Pencil size={14} /></IconBtn>
                     <IconBtn onClick={() => deleteCategory(cat)} danger><Trash2 size={14} /></IconBtn>
                   </div>
@@ -602,7 +602,7 @@
 
       return (
         <Modal onClose={onClose} title={initial ? "Edit category" : "Add category"}>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <Field label="Slug">
               <TextInput value={form.slug} onChange={(v) => setForm({ ...form, slug: v })} placeholder="breads" />
             </Field>
@@ -619,7 +619,7 @@
           <Field label="Name (Kazakh)">
             <TextInput value={form.name.kk} onChange={(v) => setForm({ ...form, name: { ...form.name, kk: v } })} />
           </Field>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <Field label="Sort order">
               <TextInput type="number" value={form.sort_order} onChange={(v) => setForm({ ...form, sort_order: Number(v) || 0 })} />
             </Field>
@@ -711,7 +711,7 @@
 
       return (
         <Modal onClose={onClose} title={initial ? "Edit product" : "Add product"} wide>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <Field label="Category">
               <select
                 value={form.category_id}
@@ -727,7 +727,7 @@
             </Field>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
             <Field label="Price">
               <TextInput type="number" value={form.price} onChange={(v) => setForm({ ...form, price: v })} />
             </Field>
@@ -764,7 +764,7 @@
           </div>
 
           {["en", "tr", "kk"].map((lang) => (
-            <div key={lang} className="grid grid-cols-2 gap-3 mb-3">
+            <div key={lang} className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <Field label={`Name (${lang.toUpperCase()})`}>
                 <TextInput value={form.name[lang]} onChange={(v) => setForm({ ...form, name: { ...form.name, [lang]: v } })} />
               </Field>
@@ -774,7 +774,7 @@
             </div>
           ))}
 
-          <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
             <Field label="Sort order">
               <TextInput type="number" value={form.sort_order} onChange={(v) => setForm({ ...form, sort_order: Number(v) || 0 })} />
             </Field>
@@ -835,7 +835,7 @@
 
     function IconBtn({ children, onClick, danger }) {
       return (
-        <button onClick={onClick} className="p-1.5 rounded-lg" style={{ color: danger ? C.brick : C.inkSoft }}>
+        <button onClick={onClick} className="p-2 rounded-lg" style={{ color: danger ? C.brick : C.inkSoft }}>
           {children}
         </button>
       );
