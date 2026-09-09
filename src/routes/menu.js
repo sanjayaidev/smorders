@@ -26,7 +26,7 @@ router.get("/", async (req, res, next) => {
     const { data: products, error: prodError } = await supabase
       .from("products")
       .select(
-        "id, category_id, slug, emoji, price, currency, weight_note, coming_soon, sort_order, name, description"
+        "id, category_id, slug, emoji, image_url, price, currency, weight_note, coming_soon, sort_order, name, description"
       )
       .eq("active", true)
       .order("sort_order");

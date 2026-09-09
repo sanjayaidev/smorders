@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simit Astana — Admin</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+      "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+    }
+  }
+  </script>
+</head>
+<body class="m-0 p-0 bg-[#F4F1EA]">
+  <div id="root"></div>
+
+  <script type="text/babel" data-type="module">
+    import React, { useState, useEffect, useCallback, useRef } from "react";
+    import { createRoot } from "react-dom/client";
+    import {
+      Lock, LogOut, RefreshCw, Clock, ChefHat, CheckCircle2, XCircle,
+      Plus, Pencil, Trash2, X, Upload, ChevronDown, ChevronUp, Loader2,
+      Package, ClipboardList,
+    } from "lucide-react";
+
+    /* ---------------------------------------------------------------------------
+       SIMIT ASTANA — admin dashboard (Orders + Products), password-gated.
+       Everything talks to /api/admin/* with "Authorization: Bearer <ADMIN_PASS>".
+       The token is just the plaintext password - see src/middleware/adminAuth.js
+       for why that's an acceptable trade-off here.
+    --------------------------------------------------------------------------- */
+
+    const C = {
+      bg: "#F4F1EA", ink: "#241C15", inkSoft: "#6B5F4F", accent: "#E7A93C",
+      accentDark: "#B9821F", brick: "#AE3B26", olive: "#5C6B35",
+      surface: "#FFFFFF", border: "#E6DBC8", chip: "#F2E8D6",
+    };
+    const sans = { fontFamily: "'Inter', system-ui, sans-serif" };
+    const serif = { fontFamily: "'Fraunces', 'Georgia', serif" };
+    const CURRENCY = "₸";
+    const TOKEN_KEY = "simit_admin_token";
+
+    const STATUS_META = {
+      on_queue: { label: "On queue", color: "#B9821F", bg: "#FBF0DA", icon: Clock },
+      preparing: { label: "Preparing", color: "#5C6B35", bg: "#E9EEDB", icon: ChefHat },
+      delivered: { label: "Delivered", color: "#2F6B4F", bg: "#DFF0E7", icon: CheckCircle2 },
+      cancelled: { label: "Cancelled", color: "#AE3B26", bg: "#F6E2DC", icon: XCircle },
+    };
+    const STATUS_ORDER = ["on_queue", "preparing", "delivered", "cancelled"];
+    const NEXT_STATUS = { on_queue: "preparing", preparing: "delivered" };
+    const NEXT_LABEL = { on_queue: "Start preparing", preparing: "Mark delivered" };
+
+    function timeAgo(iso) {
+      const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+      if (s < 60) return `${s}s ago`;
+      const m = Math.floor(s / 60);
+      if (m < 60) return `${m}m ago`;
+      const h = Math.floor(m / 60);
+      if (h < 24) return `${h}h ago`;
+      return new Date(iso).toLocaleDateString();
+    }
+
+    function emptyI18n() { return { en: "", tr: "", kk: "" }; }
+
+    /* ------------------------------- API helper ------------------------------- */
+    function useApi(token, onUnauthorized) {
+      return useCallback(
+        async (path, options = {}) => {
+          const res = await fetch(path, {
+            ...options,
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              ...(options.headers || {}),
+            },
+          });
+          if (res.status === 401) {
+            onUnauthorized();
+            throw new Error("Unauthorized");
+          }
+          if (res.status === 204) return null;
+          const data = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+          return data;
+        },
+        [token, onUnauthorized]
+      );
+    }
+
+    /* -------------------------------- Login ----------------------------------- */
+    function LoginScreen({ onLoggedIn }) {
+      const [password, setPassword] = useState("");
+      const [error, setError] = useState("");
+      const [loading, setLoading] = useState(false);
+
+      async function submit(e) {
+        e.preventDefault();
+        setLoading(true);
+        setError("");
+        try {
+          const res = await fetch("/api/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Incorrect password.");
+          onLoggedIn(data.token);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center px-4" style={{ background: C.bg, ...sans }}>
+          <form onSubmit={submit} className="w-full max-w-sm rounded-2xl p-8" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: C.chip }}>
+              <Lock size={20} style={{ color: C.accentDark }} />
+            </div>
+            <h1 className="text-xl mb-1" style={{ ...serif, color: C.ink, fontWeight: 600 }}>Simit Astana Admin</h1>
+            <p className="text-sm mb-5" style={{ color: C.inkSoft }}>Enter the staff password to continue.</p>
+            <input
+              type="password"
+              autoFocus
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              className="w-full rounded-lg px-3 py-2.5 text-sm mb-3 outline-none"
+              style={{ border: `1px solid ${C.border}`, color: C.ink }}
+            />
+            {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
+            <button
+              type="submit"
+              disabled={loading || !password}
+              className="w-full rounded-lg py-2.5 text-sm font-semibold disabled:opacity-50"
+              style={{ background: C.ink, color: C.bg }}
+            >
+              {loading ? "Checking…" : "Sign in"}
+            </button>
+          </form>
+        </div>
+      );
+    }
+
+    /* -------------------------------- Shell ------------------------------------ */
+    function App() {
+      const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY));
+      const [tab, setTab] = useState("orders");
+
+      function handleLoggedIn(t) {
+        sessionStorage.setItem(TOKEN_KEY, t);
+        setToken(t);
+      }
+      const handleUnauthorized = useCallback(() => {
+        sessionStorage.removeItem(TOKEN_KEY);
+        setToken(null);
+      }, []);
+      function logout() {
+        sessionStorage.removeItem(TOKEN_KEY);
+        setToken(null);
+      }
+
+      if (!token) return <LoginScreen onLoggedIn={handleLoggedIn} />;
+
+      return (
+        <div className="min-h-screen" style={{ background: C.bg, ...sans }}>
+          <header className="sticky top-0 z-20 px-5 py-3 flex items-center justify-between" style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+            <div className="flex items-center gap-2">
+              <span style={{ ...serif, color: C.ink, fontWeight: 700, fontSize: 18 }}>Simit Astana</span>
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.chip, color: C.accentDark }}>Admin</span>
+            </div>
+            <button onClick={logout} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+              <LogOut size={14} /> Log out
+            </button>
+          </header>
+
+          <nav className="px-5 pt-4 flex gap-2">
+            <TabButton active={tab === "orders"} onClick={() => setTab("orders")} icon={ClipboardList}>Orders</TabButton>
+            <TabButton active={tab === "products"} onClick={() => setTab("products")} icon={Package}>Products</TabButton>
+          </nav>
+
+          <main className="p-5 max-w-6xl mx-auto">
+            {tab === "orders"
+              ? <OrdersTab token={token} onUnauthorized={handleUnauthorized} />
+              : <ProductsTab token={token} onUnauthorized={handleUnauthorized} />}
+          </main>
+        </div>
+      );
+    }
+
+    function TabButton({ active, onClick, icon: Icon, children }) {
+      return (
+        <button
+          onClick={onClick}
+          className="flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-t-lg transition"
+          style={{
+            background: active ? C.surface : "transparent",
+            color: active ? C.ink : C.inkSoft,
+            border: `1px solid ${active ? C.border : "transparent"}`,
+            borderBottom: active ? `1px solid ${C.surface}` : "1px solid transparent",
+            marginBottom: -1,
+          }}
+        >
+          <Icon size={15} /> {children}
+        </button>
+      );
+    }
+
+    /* -------------------------------- Orders tab -------------------------------- */
+    function OrdersTab({ token, onUnauthorized }) {
+      const api = useApi(token, onUnauthorized);
+      const [orders, setOrders] = useState([]);
+      const [filter, setFilter] = useState("");
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState("");
+      const [cancelTarget, setCancelTarget] = useState(null);
+      const timerRef = useRef(null);
+
+      const load = useCallback(async () => {
+        try {
+          setError("");
+          const qs = filter ? `?status=${filter}` : "";
+          const data = await api(`/api/admin/orders${qs}`);
+          if (data) setOrders(data.orders);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }, [api, filter]);
+
+      useEffect(() => {
+        setLoading(true);
+        load();
+        timerRef.current = setInterval(load, 10000);
+        return () => clearInterval(timerRef.current);
+      }, [load]);
+
+      async function updateStatus(order, status, cancellationReason) {
+        try {
+          await api(`/api/admin/orders/${order.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ status, cancellationReason }),
+          });
+          load();
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+
+      const counts = STATUS_ORDER.reduce((acc, s) => {
+        acc[s] = orders.filter((o) => o.status === s).length;
+        return acc;
+      }, {});
+
+      return (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex gap-2 flex-wrap">
+              <FilterPill active={filter === ""} onClick={() => setFilter("")}>All</FilterPill>
+              {STATUS_ORDER.map((s) => (
+                <FilterPill key={s} active={filter === s} onClick={() => setFilter(s)} dotColor={STATUS_META[s].color}>
+                  {STATUS_META[s].label}
+                </FilterPill>
+              ))}
+            </div>
+            <button onClick={load} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+              <RefreshCw size={14} /> Refresh
+            </button>
+          </div>
+
+          {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
+          {loading ? (
+            <LoadingBlock />
+          ) : orders.length === 0 ? (
+            <EmptyBlock text="No orders here yet." />
+          ) : (
+            <div className="grid gap-3">
+              {orders.map((order) => (
+                <OrderCard key={order.id} order={order} onAdvance={updateStatus} onCancel={() => setCancelTarget(order)} />
+              ))}
+            </div>
+          )}
+
+          {cancelTarget && (
+            <CancelModal
+              order={cancelTarget}
+              onClose={() => setCancelTarget(null)}
+              onConfirm={(reason) => {
+                updateStatus(cancelTarget, "cancelled", reason);
+                setCancelTarget(null);
+              }}
+            />
+          )}
+        </div>
+      );
+    }
+
+    function FilterPill({ active, onClick, children, dotColor }) {
+      return (
+        <button
+          onClick={onClick}
+          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full"
+          style={{
+            background: active ? C.ink : C.surface,
+            color: active ? C.bg : C.inkSoft,
+            border: `1px solid ${active ? C.ink : C.border}`,
+          }}
+        >
+          {dotColor && <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? C.bg : dotColor }} />}
+          {children}
+        </button>
+      );
+    }
+
+    function StatusBadge({ status }) {
+      const meta = STATUS_META[status] || STATUS_META.on_queue;
+      const Icon = meta.icon;
+      return (
+        <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: meta.bg, color: meta.color }}>
+          <Icon size={12} /> {meta.label}
+        </span>
+      );
+    }
+
+    function OrderCard({ order, onAdvance, onCancel }) {
+      const [open, setOpen] = useState(false);
+      const nextStatus = NEXT_STATUS[order.status];
+
+      return (
+        <div className="rounded-xl p-4" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-mono text-sm font-semibold" style={{ color: C.ink }}>{order.order_code}</span>
+                <StatusBadge status={order.status} />
+              </div>
+              <p className="text-sm" style={{ color: C.ink }}>{order.customer_name} · Table {order.table_no}</p>
+              <p className="text-xs mt-0.5" style={{ color: C.inkSoft }}>{timeAgo(order.created_at)} · {order.items.length} item{order.items.length === 1 ? "" : "s"}</p>
+              {order.status === "cancelled" && order.cancellation_reason && (
+                <p className="text-xs mt-1 italic" style={{ color: C.brick }}>Reason: {order.cancellation_reason}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold" style={{ color: C.ink }}>{CURRENCY}{order.total}</span>
+              {nextStatus && (
+                <button onClick={() => onAdvance(order, nextStatus)} className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: C.olive, color: "#fff" }}>
+                  {NEXT_LABEL[order.status]}
+                </button>
+              )}
+              {(order.status === "on_queue" || order.status === "preparing") && (
+                <button onClick={onCancel} className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ border: `1px solid ${C.brick}`, color: C.brick }}>
+                  Cancel
+                </button>
+              )}
+              <button onClick={() => setOpen((v) => !v)} className="p-1.5 rounded-lg" style={{ color: C.inkSoft }}>
+                {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {open && (
+            <div className="mt-3 pt-3 text-sm" style={{ borderTop: `1px solid ${C.border}` }}>
+              {order.items.map((it, i) => (
+                <div key={i} className="flex justify-between py-0.5" style={{ color: C.inkSoft }}>
+                  <span>{it.quantity}× {it.product_name}</span>
+                  <span>{CURRENCY}{it.unit_price * it.quantity}</span>
+                </div>
+              ))}
+              {order.customer_note && (
+                <p className="mt-2 text-xs italic" style={{ color: C.inkSoft }}>Note: {order.customer_note}</p>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function CancelModal({ order, onClose, onConfirm }) {
+      const [reason, setReason] = useState("");
+      return (
+        <Modal onClose={onClose} title={`Cancel ${order.order_code}?`}>
+          <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Give the customer a short reason - they'll see this on their order status.</p>
+          <textarea
+            autoFocus
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g. Out of manti dough for today"
+            rows={3}
+            className="w-full rounded-lg px-3 py-2 text-sm outline-none mb-4"
+            style={{ border: `1px solid ${C.border}`, color: C.ink }}
+          />
+          <div className="flex justify-end gap-2">
+            <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>Never mind</button>
+            <button
+              disabled={!reason.trim()}
+              onClick={() => onConfirm(reason.trim())}
+              className="text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
+              style={{ background: C.brick, color: "#fff" }}
+            >
+              Cancel order
+            </button>
+          </div>
+        </Modal>
+      );
+    }
+
+    /* ------------------------------- Products tab -------------------------------- */
+    function ProductsTab({ token, onUnauthorized }) {
+      const api = useApi(token, onUnauthorized);
+      const [categories, setCategories] = useState([]);
+      const [products, setProducts] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState("");
+      const [productModal, setProductModal] = useState(null); // { mode: "add"|"edit", product? }
+      const [categoryModal, setCategoryModal] = useState(null); // { mode: "add"|"edit", category? }
+
+      const load = useCallback(async () => {
+        try {
+          setError("");
+          const data = await api("/api/admin/products");
+          if (data) {
+            setCategories(data.categories);
+            setProducts(data.products);
+          }
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }, [api]);
+
+      useEffect(() => { load(); }, [load]);
+
+      async function deleteProduct(product) {
+        if (!confirm(`Delete "${product.name?.en || product.slug}"? This can't be undone.`)) return;
+        try {
+          await api(`/api/admin/products/${product.id}`, { method: "DELETE" });
+          load();
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+
+      async function deleteCategory(category) {
+        if (!confirm(`Delete category "${category.name?.en || category.slug}"? This fails if products still use it.`)) return;
+        try {
+          await api(`/api/admin/categories/${category.id}`, { method: "DELETE" });
+          load();
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+
+      if (loading) return <LoadingBlock />;
+
+      return (
+        <div>
+          {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
+
+          <section className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 style={{ ...serif, color: C.ink, fontWeight: 600, fontSize: 17 }}>Categories</h2>
+              <button onClick={() => setCategoryModal({ mode: "add" })} className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: C.ink, color: C.bg }}>
+                <Plus size={14} /> Add category
+              </button>
+            </div>
+            <div className="grid gap-2">
+              {categories.map((cat) => (
+                <div key={cat.id} className="flex items-center justify-between rounded-lg px-4 py-2.5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+                  <div className="flex items-center gap-2">
+                    <span>{cat.icon || "📁"}</span>
+                    <span className="text-sm font-medium" style={{ color: C.ink }}>{cat.name?.en || cat.slug}</span>
+                    <span className="text-xs" style={{ color: C.inkSoft }}>({cat.slug})</span>
+                    {!cat.active && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.chip, color: C.inkSoft }}>inactive</span>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <IconBtn onClick={() => setCategoryModal({ mode: "edit", category: cat })}><Pencil size={14} /></IconBtn>
+                    <IconBtn onClick={() => deleteCategory(cat)} danger><Trash2 size={14} /></IconBtn>
+                  </div>
+                </div>
+              ))}
+              {categories.length === 0 && <EmptyBlock text="No categories yet." />}
+            </div>
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 style={{ ...serif, color: C.ink, fontWeight: 600, fontSize: 17 }}>Products</h2>
+              <button
+                onClick={() => setProductModal({ mode: "add" })}
+                disabled={categories.length === 0}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
+                style={{ background: C.ink, color: C.bg }}
+              >
+                <Plus size={14} /> Add product
+              </button>
+            </div>
+            <div className="grid gap-2">
+              {products.map((p) => (
+                <ProductRow
+                  key={p.id}
+                  product={p}
+                  category={categories.find((c) => c.id === p.category_id)}
+                  onEdit={() => setProductModal({ mode: "edit", product: p })}
+                  onDelete={() => deleteProduct(p)}
+                />
+              ))}
+              {products.length === 0 && <EmptyBlock text="No products yet." />}
+            </div>
+          </section>
+
+          {categoryModal && (
+            <CategoryModal
+              initial={categoryModal.category}
+              onClose={() => setCategoryModal(null)}
+              onSaved={() => { setCategoryModal(null); load(); }}
+              api={api}
+            />
+          )}
+          {productModal && (
+            <ProductModal
+              initial={productModal.product}
+              categories={categories}
+              onClose={() => setProductModal(null)}
+              onSaved={() => { setProductModal(null); load(); }}
+              api={api}
+              token={token}
+            />
+          )}
+        </div>
+      );
+    }
+
+    function ProductRow({ product, category, onEdit, onDelete }) {
+      return (
+        <div className="flex items-center justify-between rounded-lg px-4 py-2.5 gap-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <div className="flex items-center gap-3 min-w-0">
+            {product.image_url ? (
+              <img src={product.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" style={{ border: `1px solid ${C.border}` }} />
+            ) : (
+              <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-lg" style={{ background: C.chip }}>{product.emoji || "🍽️"}</div>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium truncate" style={{ color: C.ink }}>{product.name?.en || product.slug}</span>
+                {!product.active && <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: C.chip, color: C.inkSoft }}>inactive</span>}
+                {product.coming_soon && <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: "#FBF0DA", color: C.accentDark }}>coming soon</span>}
+              </div>
+              <p className="text-xs truncate" style={{ color: C.inkSoft }}>{category?.name?.en || "—"} · {CURRENCY}{product.price} {product.weight_note ? `· ${product.weight_note}` : ""}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <IconBtn onClick={onEdit}><Pencil size={14} /></IconBtn>
+            <IconBtn onClick={onDelete} danger><Trash2 size={14} /></IconBtn>
+          </div>
+        </div>
+      );
+    }
+
+    /* ------------------------------- Category modal ------------------------------ */
+    function CategoryModal({ initial, onClose, onSaved, api }) {
+      const [form, setForm] = useState(() => ({
+        slug: initial?.slug || "",
+        icon: initial?.icon || "",
+        sort_order: initial?.sort_order ?? 0,
+        active: initial?.active ?? true,
+        name: initial?.name || emptyI18n(),
+      }));
+      const [saving, setSaving] = useState(false);
+      const [error, setError] = useState("");
+
+      async function save() {
+        if (!form.slug.trim() || !form.name.en.trim()) {
+          setError("Slug and English name are required.");
+          return;
+        }
+        setSaving(true);
+        setError("");
+        try {
+          if (initial) {
+            await api(`/api/admin/categories/${initial.id}`, { method: "PUT", body: JSON.stringify(form) });
+          } else {
+            await api("/api/admin/categories", { method: "POST", body: JSON.stringify(form) });
+          }
+          onSaved();
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setSaving(false);
+        }
+      }
+
+      return (
+        <Modal onClose={onClose} title={initial ? "Edit category" : "Add category"}>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <Field label="Slug">
+              <TextInput value={form.slug} onChange={(v) => setForm({ ...form, slug: v })} placeholder="breads" />
+            </Field>
+            <Field label="Icon (emoji)">
+              <TextInput value={form.icon} onChange={(v) => setForm({ ...form, icon: v })} placeholder="🥯" />
+            </Field>
+          </div>
+          <Field label="Name (English)">
+            <TextInput value={form.name.en} onChange={(v) => setForm({ ...form, name: { ...form.name, en: v } })} />
+          </Field>
+          <Field label="Name (Turkish)">
+            <TextInput value={form.name.tr} onChange={(v) => setForm({ ...form, name: { ...form.name, tr: v } })} />
+          </Field>
+          <Field label="Name (Kazakh)">
+            <TextInput value={form.name.kk} onChange={(v) => setForm({ ...form, name: { ...form.name, kk: v } })} />
+          </Field>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <Field label="Sort order">
+              <TextInput type="number" value={form.sort_order} onChange={(v) => setForm({ ...form, sort_order: Number(v) || 0 })} />
+            </Field>
+            <Field label="Active">
+              <Toggle checked={form.active} onChange={(v) => setForm({ ...form, active: v })} />
+            </Field>
+          </div>
+          {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>Cancel</button>
+            <button onClick={save} disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50" style={{ background: C.ink, color: C.bg }}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </Modal>
+      );
+    }
+
+    /* -------------------------------- Product modal ------------------------------- */
+    function ProductModal({ initial, categories, onClose, onSaved, api, token }) {
+      const [form, setForm] = useState(() => ({
+        category_id: initial?.category_id || categories[0]?.id || "",
+        slug: initial?.slug || "",
+        emoji: initial?.emoji || "",
+        image_url: initial?.image_url || "",
+        price: initial?.price ?? 0,
+        currency: initial?.currency || "KZT",
+        weight_note: initial?.weight_note || "",
+        coming_soon: initial?.coming_soon ?? false,
+        sort_order: initial?.sort_order ?? 0,
+        active: initial?.active ?? true,
+        name: initial?.name || emptyI18n(),
+        description: initial?.description || emptyI18n(),
+      }));
+      const [saving, setSaving] = useState(false);
+      const [uploading, setUploading] = useState(false);
+      const [error, setError] = useState("");
+      const fileRef = useRef(null);
+
+      async function handleFile(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploading(true);
+        setError("");
+        try {
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          const res = await fetch("/api/upload/image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ image: base64, name: form.slug || "product" }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Upload failed.");
+          setForm((f) => ({ ...f, image_url: data.url }));
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setUploading(false);
+          if (fileRef.current) fileRef.current.value = "";
+        }
+      }
+
+      async function save() {
+        if (!form.category_id || !form.slug.trim() || !form.name.en.trim()) {
+          setError("Category, slug and English name are required.");
+          return;
+        }
+        setSaving(true);
+        setError("");
+        try {
+          const payload = { ...form, price: Number(form.price) || 0 };
+          if (initial) {
+            await api(`/api/admin/products/${initial.id}`, { method: "PUT", body: JSON.stringify(payload) });
+          } else {
+            await api("/api/admin/products", { method: "POST", body: JSON.stringify(payload) });
+          }
+          onSaved();
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setSaving(false);
+        }
+      }
+
+      return (
+        <Modal onClose={onClose} title={initial ? "Edit product" : "Add product"} wide>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <Field label="Category">
+              <select
+                value={form.category_id}
+                onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={{ border: `1px solid ${C.border}`, color: C.ink }}
+              >
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name?.en || c.slug}</option>)}
+              </select>
+            </Field>
+            <Field label="Slug">
+              <TextInput value={form.slug} onChange={(v) => setForm({ ...form, slug: v })} placeholder="simit-classic" />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <Field label="Price">
+              <TextInput type="number" value={form.price} onChange={(v) => setForm({ ...form, price: v })} />
+            </Field>
+            <Field label="Currency">
+              <TextInput value={form.currency} onChange={(v) => setForm({ ...form, currency: v })} />
+            </Field>
+            <Field label="Weight / note">
+              <TextInput value={form.weight_note} onChange={(v) => setForm({ ...form, weight_note: v })} placeholder="180g" />
+            </Field>
+          </div>
+
+          <div className="mb-3">
+            <span className="text-xs font-medium block mb-1.5" style={{ color: C.inkSoft }}>Photo</span>
+            <div className="flex items-center gap-3">
+              {form.image_url ? (
+                <img src={form.image_url} alt="" className="w-16 h-16 rounded-lg object-cover" style={{ border: `1px solid ${C.border}` }} />
+              ) : (
+                <div className="w-16 h-16 rounded-lg flex items-center justify-center text-2xl" style={{ background: C.chip }}>{form.emoji || "🍽️"}</div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                <label className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ border: `1px solid ${C.border}`, color: C.ink }}>
+                  {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                  {uploading ? "Uploading…" : "Upload photo"}
+                  <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} className="hidden" disabled={uploading} />
+                </label>
+                {form.image_url && (
+                  <button onClick={() => setForm({ ...form, image_url: "" })} className="text-xs" style={{ color: C.inkSoft }}>Remove photo</button>
+                )}
+              </div>
+              <div className="flex-1">
+                <TextInput value={form.emoji} onChange={(v) => setForm({ ...form, emoji: v })} placeholder="Fallback emoji, e.g. 🥯" />
+              </div>
+            </div>
+          </div>
+
+          {["en", "tr", "kk"].map((lang) => (
+            <div key={lang} className="grid grid-cols-2 gap-3 mb-3">
+              <Field label={`Name (${lang.toUpperCase()})`}>
+                <TextInput value={form.name[lang]} onChange={(v) => setForm({ ...form, name: { ...form.name, [lang]: v } })} />
+              </Field>
+              <Field label={`Description (${lang.toUpperCase()})`}>
+                <TextInput value={form.description[lang]} onChange={(v) => setForm({ ...form, description: { ...form.description, [lang]: v } })} />
+              </Field>
+            </div>
+          ))}
+
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            <Field label="Sort order">
+              <TextInput type="number" value={form.sort_order} onChange={(v) => setForm({ ...form, sort_order: Number(v) || 0 })} />
+            </Field>
+            <Field label="Active">
+              <Toggle checked={form.active} onChange={(v) => setForm({ ...form, active: v })} />
+            </Field>
+            <Field label="Coming soon">
+              <Toggle checked={form.coming_soon} onChange={(v) => setForm({ ...form, coming_soon: v })} />
+            </Field>
+          </div>
+
+          {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
+          <div className="flex justify-end gap-2">
+            <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>Cancel</button>
+            <button onClick={save} disabled={saving || uploading} className="text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50" style={{ background: C.ink, color: C.bg }}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        </Modal>
+      );
+    }
+
+    /* -------------------------------- Small bits --------------------------------- */
+    function Field({ label, children }) {
+      return (
+        <label className="block mb-3">
+          <span className="text-xs font-medium block mb-1.5" style={{ color: C.inkSoft }}>{label}</span>
+          {children}
+        </label>
+      );
+    }
+
+    function TextInput({ value, onChange, type = "text", placeholder }) {
+      return (
+        <input
+          type={type}
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+          style={{ border: `1px solid ${C.border}`, color: C.ink }}
+        />
+      );
+    }
+
+    function Toggle({ checked, onChange }) {
+      return (
+        <button
+          type="button"
+          onClick={() => onChange(!checked)}
+          className="w-11 h-6 rounded-full relative transition"
+          style={{ background: checked ? C.olive : C.border }}
+        >
+          <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition" style={{ left: checked ? 22 : 2 }} />
+        </button>
+      );
+    }
+
+    function IconBtn({ children, onClick, danger }) {
+      return (
+        <button onClick={onClick} className="p-1.5 rounded-lg" style={{ color: danger ? C.brick : C.inkSoft }}>
+          {children}
+        </button>
+      );
+    }
+
+    function Modal({ title, children, onClose, wide }) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto" style={{ background: "rgba(36,28,21,0.45)" }} onClick={onClose}>
+          <div
+            className={`w-full ${wide ? "max-w-xl" : "max-w-sm"} rounded-2xl p-6 my-8`}
+            style={{ background: C.surface }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 style={{ ...serif, color: C.ink, fontWeight: 600, fontSize: 16 }}>{title}</h3>
+              <button onClick={onClose} style={{ color: C.inkSoft }}><X size={18} /></button>
+            </div>
+            {children}
+          </div>
+        </div>
+      );
+    }
+
+    function LoadingBlock() {
+      return (
+        <div className="flex items-center gap-2 justify-center py-16" style={{ color: C.inkSoft }}>
+          <Loader2 size={18} className="animate-spin" /> Loading…
+        </div>
+      );
+    }
+
+    function EmptyBlock({ text }) {
+      return (
+        <div className="text-center py-10 text-sm rounded-xl" style={{ color: C.inkSoft, background: C.surface, border: `1px dashed ${C.border}` }}>
+          {text}
+        </div>
+      );
+    }
+
+    createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

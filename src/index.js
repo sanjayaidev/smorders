@@ -6,6 +6,11 @@ import "dotenv/config";
 import menuRouter from "./routes/menu.js";
 import ordersRouter from "./routes/orders.js";
 import uploadRouter from "./routes/upload.js";
+import { adminAuth } from "./middleware/adminAuth.js";
+import adminSessionRouter from "./routes/adminSession.js";
+import adminOrdersRouter from "./routes/adminOrders.js";
+import adminProductsRouter from "./routes/adminProducts.js";
+import adminCategoriesRouter from "./routes/adminCategories.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -18,8 +23,16 @@ app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use("/api/menu", menuRouter);
 app.use("/api/orders", ordersRouter);
 // Base64 image payloads run bigger than express.json()'s 100kb default, so
-// this route gets its own limit rather than raising it globally.
-app.use("/api/upload", express.json({ limit: "40mb" }), uploadRouter);
+// this route gets its own limit rather than raising it globally. It's
+// gated behind adminAuth since it spends the server's IMGBB_API_KEY quota.
+app.use("/api/upload", adminAuth, express.json({ limit: "40mb" }), uploadRouter);
+
+// Admin dashboard API. /login just checks the password; everything else
+// requires "Authorization: Bearer <ADMIN_PASS>" via adminAuth.
+app.use("/api/admin/login", adminSessionRouter);
+app.use("/api/admin/orders", adminAuth, adminOrdersRouter);
+app.use("/api/admin/products", adminAuth, adminProductsRouter);
+app.use("/api/admin/categories", adminAuth, adminCategoriesRouter);
 
 // Serve the customer-facing frontend (public/index.html) at the root,
 // same-origin as the API - so fetch("/api/menu") just works with no

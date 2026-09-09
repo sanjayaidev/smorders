@@ -72,7 +72,7 @@ router.post("/", async (req, res, next) => {
         lang,
         total,
         currency: "KZT",
-        status: "pending",
+        status: "on_queue",
       })
       .select()
       .single();
@@ -98,7 +98,7 @@ router.get("/:orderCode", async (req, res, next) => {
   try {
     const { data: order, error } = await supabase
       .from("orders")
-      .select("id, order_code, status, total, currency, created_at")
+      .select("id, order_code, status, cancellation_reason, total, currency, created_at")
       .eq("order_code", req.params.orderCode)
       .single();
     if (error || !order) return res.status(404).json({ error: "Order not found." });
