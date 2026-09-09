@@ -6,6 +6,7 @@ import "dotenv/config";
 import menuRouter from "./routes/menu.js";
 import ordersRouter from "./routes/orders.js";
 import uploadRouter from "./routes/upload.js";
+import assistantRouter from "./routes/assistant.js";
 import { adminAuth } from "./middleware/adminAuth.js";
 import adminSessionRouter from "./routes/adminSession.js";
 import adminOrdersRouter from "./routes/adminOrders.js";
@@ -22,6 +23,7 @@ app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 app.use("/api/menu", menuRouter);
 app.use("/api/orders", ordersRouter);
+app.use("/api/assistant", assistantRouter);
 // Base64 image payloads run bigger than express.json()'s 100kb default, so
 // this route gets its own limit rather than raising it globally. It's
 // gated behind adminAuth since it spends the server's IMGBB_API_KEY quota.
