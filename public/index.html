@@ -57,12 +57,12 @@
     function Stepper({ qty, onChange, min = 0 }) {
       return (
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => onChange(Math.max(min, qty - 1))} className="w-7 h-7 rounded-full flex items-center justify-center transition" style={{ border: `1px solid ${C.border}`, color: C.ink }}>
-            <Minus size={14} />
+          <button type="button" onClick={() => onChange(Math.max(min, qty - 1))} className="w-9 h-9 rounded-full flex items-center justify-center transition" style={{ border: `1px solid ${C.border}`, color: C.ink }}>
+            <Minus size={15} />
           </button>
           <span className="w-5 text-center text-sm font-semibold" style={{ color: C.ink }}>{qty}</span>
-          <button type="button" onClick={() => onChange(qty + 1)} className="w-7 h-7 rounded-full flex items-center justify-center transition" style={{ background: C.ink, color: C.bg }}>
-            <Plus size={14} />
+          <button type="button" onClick={() => onChange(qty + 1)} className="w-9 h-9 rounded-full flex items-center justify-center transition" style={{ background: C.ink, color: C.bg }}>
+            <Plus size={15} />
           </button>
         </div>
       );
@@ -367,9 +367,9 @@
           <Toast message={toast} />
 
           <header className="sticky top-0 z-30" style={{ background: C.bg, borderBottom: `1px solid ${C.border}` }}>
-            <div className="max-w-3xl mx-auto px-5 pt-5 pb-3 flex items-start justify-between gap-4">
+            <div className="max-w-3xl mx-auto px-5 pt-5 pb-3 flex flex-col sm:flex-row items-start justify-between gap-3 sm:gap-4">
               <div>
-                <h1 className="text-3xl leading-none" style={{ ...serif, color: C.ink, fontWeight: 600 }}>{t.appName}</h1>
+                <h1 className="text-2xl sm:text-3xl leading-none" style={{ ...serif, color: C.ink, fontWeight: 600 }}>{t.appName}</h1>
                 <p className="text-sm mt-1" style={{ color: C.inkSoft }}>{t.tagline}</p>
               </div>
               <div className="flex items-center gap-1 rounded-full p-1 shrink-0" style={{ background: C.chip }}>
@@ -409,7 +409,7 @@
                 <div className="space-y-5 fade-up">
                   <section className="rounded-2xl p-5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
                     <h2 className="text-lg mb-3" style={{ ...serif, color: C.ink, fontWeight: 600 }}>{t.yourDetails}</h2>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <Field label={t.name}>
                         <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder={t.namePlaceholder} className="w-full rounded-lg px-3 py-2 text-sm" style={{ border: `1px solid ${C.border}`, color: C.ink }} />
                       </Field>
@@ -459,9 +459,9 @@
                                   <p className="text-xs" style={{ color: C.inkSoft }}>{CURRENCY}{c.item.price} × {c.qty}</p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-3 shrink-0">
+                              <div className="flex items-center gap-1 shrink-0">
                                 <Stepper qty={c.qty} onChange={(q) => changeQty(c.id, q)} />
-                                <button onClick={() => changeQty(c.id, 0)} style={{ color: C.inkSoft }} aria-label="remove">
+                                <button onClick={() => changeQty(c.id, 0)} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: C.inkSoft }} aria-label="remove">
                                   <X size={16} />
                                 </button>
                               </div>
@@ -737,8 +737,8 @@
                       <button onClick={() => onView(item)} className="flex-1 rounded-lg py-2 text-xs font-semibold" style={{ border: `1px solid ${C.border}`, color: C.ink }}>
                         {t.menuView}
                       </button>
-                      <button disabled={item.coming_soon} onClick={() => onAdd(item.id)} className="w-9 rounded-lg flex items-center justify-center disabled:opacity-40" style={{ background: C.chip, color: C.ink }} aria-label={t.menuAdd}>
-                        <Plus size={15} />
+                      <button disabled={item.coming_soon} onClick={() => onAdd(item.id)} className="w-11 rounded-lg flex items-center justify-center disabled:opacity-40" style={{ background: C.chip, color: C.ink }} aria-label={t.menuAdd}>
+                        <Plus size={16} />
                       </button>
                       <button disabled={item.coming_soon} onClick={() => onQuickOrder(item)} className="flex-1 rounded-lg py-2 text-xs font-semibold disabled:opacity-40" style={{ background: C.brick, color: C.bg }}>
                         {t.menuOrderNow}
