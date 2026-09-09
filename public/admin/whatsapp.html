@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simit Astana — WhatsApp Bot</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+      "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+    }
+  }
+  </script>
+</head>
+<body class="m-0 p-0 bg-[#F4F1EA]">
+  <div id="root"></div>
+
+  <script type="text/babel" data-type="module">
+    import React, { useState, useEffect, useCallback } from "react";
+    import { createRoot } from "react-dom/client";
+    import {
+      Lock, LogOut, MessageCircle, Sparkles, ListChecks, Plus, Pencil, Trash2,
+      X, Loader2, Save, User, Hash, ShoppingCart, CheckCircle2, ArrowRight,
+      Plug, Copy, Check, RadioTower,
+    } from "lucide-react";
+
+    /* ---------------------------------------------------------------------------
+       WhatsApp bot automation maker: welcome/follow-up messages, keyword-based
+       auto-replies, and a read-only look at the built-in order-taking chain.
+       Same auth pattern as the main admin dashboard - "Authorization: Bearer
+       <ADMIN_PASS>", stored in sessionStorage under the same key so a link
+       from the main dashboard in the same tab doesn't force a second login.
+    --------------------------------------------------------------------------- */
+
+    const C = {
+      bg: "#F4F1EA", ink: "#241C15", inkSoft: "#6B5F4F", accent: "#E7A93C",
+      accentDark: "#B9821F", brick: "#AE3B26", olive: "#5C6B35",
+      surface: "#FFFFFF", border: "#E6DBC8", chip: "#F2E8D6",
+    };
+    const sans = { fontFamily: "'Inter', system-ui, sans-serif" };
+    const serif = { fontFamily: "'Fraunces', 'Georgia', serif" };
+    const TOKEN_KEY = "simit_admin_token";
+
+    /* ------------------------------- API helper ------------------------------- */
+    function useApi(token, onUnauthorized) {
+      return useCallback(
+        async (path, options = {}) => {
+          const res = await fetch(path, {
+            ...options,
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              ...(options.headers || {}),
+            },
+          });
+          if (res.status === 401) {
+            onUnauthorized();
+            throw new Error("Unauthorized");
+          }
+          if (res.status === 204) return null;
+          const data = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+          return data;
+        },
+        [token, onUnauthorized]
+      );
+    }
+
+    /* -------------------------------- Login ----------------------------------- */
+    function LoginScreen({ onLoggedIn }) {
+      const [password, setPassword] = useState("");
+      const [error, setError] = useState("");
+      const [loading, setLoading] = useState(false);
+
+      async function submit(e) {
+        e.preventDefault();
+        setLoading(true);
+        setError("");
+        try {
+          const res = await fetch("/api/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Incorrect password.");
+          onLoggedIn(data.token);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center px-4" style={{ background: C.bg, ...sans }}>
+          <form onSubmit={submit} className="w-full max-w-sm rounded-2xl p-8" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: C.chip }}>
+              <Lock size={20} style={{ color: C.accentDark }} />
+            </div>
+            <h1 className="text-xl mb-1" style={{ ...serif, color: C.ink, fontWeight: 600 }}>WhatsApp Bot</h1>
+            <p className="text-sm mb-5" style={{ color: C.inkSoft }}>Enter the staff password to continue.</p>
+            <input
+              type="password"
+              autoFocus
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              className="w-full rounded-lg px-3 py-2.5 text-sm mb-3 outline-none"
+              style={{ border: `1px solid ${C.border}`, color: C.ink }}
+            />
+            {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
+            <button
+              type="submit"
+              disabled={loading || !password}
+              className="w-full rounded-lg py-2.5 text-sm font-semibold disabled:opacity-50"
+              style={{ background: C.ink, color: C.bg }}
+            >
+              {loading ? "Checking…" : "Sign in"}
+            </button>
+          </form>
+        </div>
+      );
+    }
+
+    /* ------------------------------ Small pieces ------------------------------- */
+    function Card({ children, className = "" }) {
+      return (
+        <div className={`rounded-2xl p-5 ${className}`} style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          {children}
+        </div>
+      );
+    }
+    function Label({ children }) {
+      return <label className="block text-xs font-semibold mb-1.5" style={{ color: C.inkSoft }}>{children}</label>;
+    }
+    function TextInput(props) {
+      return (
+        <input
+          {...props}
+          className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+          style={{ border: `1px solid ${C.border}`, color: C.ink }}
+        />
+      );
+    }
+    function TextArea(props) {
+      return (
+        <textarea
+          {...props}
+          className="w-full rounded-lg px-3 py-2 text-sm outline-none resize-y"
+          style={{ border: `1px solid ${C.border}`, color: C.ink, minHeight: 90 }}
+        />
+      );
+    }
+    function PrimaryButton({ children, ...props }) {
+      return (
+        <button
+          {...props}
+          className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
+          style={{ background: C.ink, color: C.bg }}
+        >
+          {children}
+        </button>
+      );
+    }
+
+    /* -------------------------------- Shell ------------------------------------ */
+    function App() {
+      const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY));
+      const [tab, setTab] = useState("connection");
+      const [savedFlash, setSavedFlash] = useState(false);
+
+      function handleLoggedIn(t) {
+        sessionStorage.setItem(TOKEN_KEY, t);
+        setToken(t);
+      }
+      const handleUnauthorized = useCallback(() => {
+        sessionStorage.removeItem(TOKEN_KEY);
+        setToken(null);
+      }, []);
+      function logout() {
+        sessionStorage.removeItem(TOKEN_KEY);
+        setToken(null);
+      }
+      function flashSaved() {
+        setSavedFlash(true);
+        setTimeout(() => setSavedFlash(false), 2000);
+      }
+
+      if (!token) return <LoginScreen onLoggedIn={handleLoggedIn} />;
+
+      return (
+        <div className="min-h-screen" style={{ background: C.bg, ...sans }}>
+          <header className="sticky top-0 z-20 px-5 py-3 flex items-center justify-between" style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+            <div className="flex items-center gap-2">
+              <MessageCircle size={18} style={{ color: C.olive }} />
+              <span style={{ ...serif, color: C.ink, fontWeight: 700, fontSize: 18 }}>Simit Astana</span>
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.chip, color: C.accentDark }}>WhatsApp Bot</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {savedFlash && (
+                <span className="flex items-center gap-1 text-xs font-medium" style={{ color: C.olive }}>
+                  <CheckCircle2 size={14} /> Saved
+                </span>
+              )}
+              <a href="/admin/index.html" className="text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+                ← Main admin
+              </a>
+              <button onClick={logout} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+                <LogOut size={14} /> Log out
+              </button>
+            </div>
+          </header>
+
+          <nav className="px-5 pt-4 flex gap-2">
+            <TabButton active={tab === "connection"} onClick={() => setTab("connection")} icon={Plug}>Connection</TabButton>
+            <TabButton active={tab === "messages"} onClick={() => setTab("messages")} icon={Sparkles}>Welcome & Follow-up</TabButton>
+            <TabButton active={tab === "keywords"} onClick={() => setTab("keywords")} icon={ListChecks}>Keyword Automations</TabButton>
+            <TabButton active={tab === "flow"} onClick={() => setTab("flow")} icon={ShoppingCart}>Order Flow</TabButton>
+          </nav>
+
+          <main className="p-5 max-w-4xl mx-auto">
+            {tab === "connection" && <ConnectionTab token={token} onUnauthorized={handleUnauthorized} onSaved={flashSaved} />}
+            {tab === "messages" && <MessagesTab token={token} onUnauthorized={handleUnauthorized} onSaved={flashSaved} />}
+            {tab === "keywords" && <KeywordsTab token={token} onUnauthorized={handleUnauthorized} onSaved={flashSaved} />}
+            {tab === "flow" && <FlowTab />}
+          </main>
+        </div>
+      );
+    }
+
+    function TabButton({ active, onClick, icon: Icon, children }) {
+      return (
+        <button
+          onClick={onClick}
+          className="flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-t-lg transition"
+          style={{
+            background: active ? C.surface : "transparent",
+            color: active ? C.ink : C.inkSoft,
+            border: `1px solid ${active ? C.border : "transparent"}`,
+            borderBottom: active ? `1px solid ${C.surface}` : "1px solid transparent",
+            marginBottom: -1,
+          }}
+        >
+          <Icon size={15} /> {children}
+        </button>
+      );
+    }
+
+    /* --------------------------------- Connection -------------------------------- */
+    function CopyField({ label, value, hint }) {
+      const [copied, setCopied] = useState(false);
+      function copy() {
+        navigator.clipboard.writeText(value || "");
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }
+      return (
+        <div>
+          <Label>{label}</Label>
+          <div className="flex gap-2">
+            <TextInput value={value || ""} readOnly onClick={(e) => e.target.select()} />
+            <button onClick={copy} className="shrink-0 px-3 rounded-lg text-sm flex items-center gap-1" style={{ border: `1px solid ${C.border}`, color: C.inkSoft }}>
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+          </div>
+          {hint && <p className="text-xs mt-1" style={{ color: C.inkSoft }}>{hint}</p>}
+        </div>
+      );
+    }
+
+    function ConnectionTab({ token, onUnauthorized, onSaved }) {
+      const api = useApi(token, onUnauthorized);
+      const [connection, setConnection] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState("");
+
+      // Form state for (re)connecting.
+      const [wabaId, setWabaId] = useState("");
+      const [accessToken, setAccessToken] = useState("");
+      const [appSecret, setAppSecret] = useState("");
+      const [numbers, setNumbers] = useState(null); // null = not looked up yet
+      const [selectedNumberId, setSelectedNumberId] = useState("");
+      const [looking, setLooking] = useState(false);
+      const [saving, setSaving] = useState(false);
+
+      const load = useCallback(async () => {
+        try {
+          const data = await api("/api/admin/whatsapp/connection");
+          setConnection(data.connection);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }, [api]);
+
+      useEffect(() => { load(); }, [load]);
+
+      async function lookupNumbers() {
+        if (!wabaId.trim() || !accessToken.trim()) {
+          setError("Paste both the WABA ID and the access token first.");
+          return;
+        }
+        setLooking(true);
+        setError("");
+        setNumbers(null);
+        try {
+          const data = await api("/api/admin/whatsapp/connection/lookup", {
+            method: "POST",
+            body: JSON.stringify({ wabaId, accessToken }),
+          });
+          setNumbers(data.numbers);
+          // Only one number on this WABA - select it automatically, no picker needed.
+          if (data.numbers.length === 1) setSelectedNumberId(data.numbers[0].id);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLooking(false);
+        }
+      }
+
+      async function connect() {
+        const chosen = numbers?.find((n) => n.id === selectedNumberId);
+        if (!chosen) {
+          setError("Pick a phone number first.");
+          return;
+        }
+        setSaving(true);
+        setError("");
+        try {
+          const data = await api("/api/admin/whatsapp/connection", {
+            method: "POST",
+            body: JSON.stringify({
+              wabaId,
+              accessToken,
+              phoneNumberId: chosen.id,
+              phoneNumberDisplay: chosen.displayPhoneNumber,
+              ...(appSecret.trim() ? { appSecret } : {}),
+            }),
+          });
+          setConnection(data.connection);
+          setNumbers(null);
+          setAccessToken("");
+          setAppSecret("");
+          onSaved();
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setSaving(false);
+        }
+      }
+
+      if (loading) return <div className="py-16 flex justify-center"><Loader2 className="animate-spin" style={{ color: C.inkSoft }} /></div>;
+
+      return (
+        <div className="space-y-5">
+          {connection?.phoneNumberId && (
+            <Card>
+              <div className="flex items-center gap-2 mb-1">
+                <RadioTower size={16} style={{ color: C.olive }} />
+                <h2 className="text-base font-semibold" style={{ color: C.ink }}>Connected</h2>
+              </div>
+              <p className="text-sm mb-4" style={{ color: C.inkSoft }}>
+                {connection.phoneNumberDisplay || connection.phoneNumberId} is live and receiving messages.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div><span style={{ color: C.inkSoft }}>WABA ID:</span> <span style={{ color: C.ink }}>{connection.wabaId}</span></div>
+                <div><span style={{ color: C.inkSoft }}>Access token:</span> <span style={{ color: C.ink }}>{connection.accessTokenMasked}</span></div>
+                <div><span style={{ color: C.inkSoft }}>App secret:</span> <span style={{ color: C.ink }}>{connection.appSecretSet ? "set" : "not set"}</span></div>
+              </div>
+            </Card>
+          )}
+
+          <Card>
+            <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>
+              {connection?.phoneNumberId ? "Reconnect / switch number" : "Connect WhatsApp"}
+            </h2>
+            <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+              Paste your WhatsApp Business Account (WABA) ID and a permanent access token from Meta's App dashboard. We'll fetch the phone numbers registered under it - pick the one you want to use.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <div>
+                <Label>WABA ID</Label>
+                <TextInput value={wabaId} onChange={(e) => { setWabaId(e.target.value); setNumbers(null); }} placeholder="e.g. 123456789012345" />
+              </div>
+              <div>
+                <Label>Access token</Label>
+                <TextInput type="password" value={accessToken} onChange={(e) => { setAccessToken(e.target.value); setNumbers(null); }} placeholder="EAAG..." />
+              </div>
+            </div>
+            <div className="mb-4">
+              <Label>App secret (optional, for webhook signature verification)</Label>
+              <TextInput type="password" value={appSecret} onChange={(e) => setAppSecret(e.target.value)} placeholder="Leave blank to skip verification" />
+            </div>
+
+            {numbers === null && (
+              <PrimaryButton onClick={lookupNumbers} disabled={looking}>
+                {looking ? <Loader2 size={15} className="animate-spin" /> : <RadioTower size={15} />}
+                {looking ? "Looking up numbers…" : "Find numbers"}
+              </PrimaryButton>
+            )}
+
+            {numbers && numbers.length > 1 && (
+              <div className="space-y-2 mb-4">
+                <Label>Choose a number</Label>
+                {numbers.map((n) => (
+                  <label
+                    key={n.id}
+                    className="flex items-center gap-3 rounded-lg p-3 cursor-pointer"
+                    style={{ border: `1px solid ${selectedNumberId === n.id ? C.accentDark : C.border}`, background: selectedNumberId === n.id ? C.chip : "transparent" }}
+                  >
+                    <input type="radio" name="wa-number" checked={selectedNumberId === n.id} onChange={() => setSelectedNumberId(n.id)} />
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: C.ink }}>{n.displayPhoneNumber}</div>
+                      <div className="text-xs" style={{ color: C.inkSoft }}>{n.verifiedName} {n.qualityRating ? `· quality: ${n.qualityRating}` : ""}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {numbers && numbers.length === 1 && (
+              <div className="rounded-lg p-3 mb-4 flex items-center gap-3" style={{ background: C.chip }}>
+                <Check size={16} style={{ color: C.olive }} />
+                <div className="text-sm" style={{ color: C.ink }}>
+                  Only one number found - <strong>{numbers[0].displayPhoneNumber}</strong> ({numbers[0].verifiedName}) selected automatically.
+                </div>
+              </div>
+            )}
+
+            {numbers && numbers.length === 0 && (
+              <p className="text-sm mb-4" style={{ color: C.brick }}>No phone numbers found on that WABA.</p>
+            )}
+
+            {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
+
+            {numbers && numbers.length > 0 && (
+              <div className="flex gap-2">
+                <PrimaryButton onClick={connect} disabled={saving || !selectedNumberId}>
+                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Plug size={15} />}
+                  {saving ? "Connecting…" : "Connect this number"}
+                </PrimaryButton>
+                <button onClick={() => setNumbers(null)} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+                  Back
+                </button>
+              </div>
+            )}
+          </Card>
+
+          {connection?.webhookUrl && (
+            <Card>
+              <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>Webhook setup (Meta App dashboard)</h2>
+              <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+                In WhatsApp → Configuration in your Meta App, paste these into the Callback URL and Verify Token fields, then subscribe to the "messages" field.
+              </p>
+              <div className="space-y-3">
+                <CopyField label="Callback URL" value={connection.webhookUrl} />
+                <CopyField label="Verify token" value={connection.verifyToken} />
+              </div>
+            </Card>
+          )}
+        </div>
+      );
+    }
+
+    /* --------------------------- Welcome & Follow-up ---------------------------- */
+    function MessagesTab({ token, onUnauthorized, onSaved }) {
+      const api = useApi(token, onUnauthorized);
+      const [settings, setSettings] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [saving, setSaving] = useState(false);
+      const [error, setError] = useState("");
+
+      useEffect(() => {
+        api("/api/admin/whatsapp/settings")
+          .then((data) => setSettings(data.settings))
+          .catch((err) => setError(err.message))
+          .finally(() => setLoading(false));
+      }, [api]);
+
+      function set(field, value) {
+        setSettings((s) => ({ ...s, [field]: value }));
+      }
+
+      async function save() {
+        setSaving(true);
+        setError("");
+        try {
+          const { welcome_message, order_button_label, location_button_label, menu_button_label,
+                  followup_message, followup_delay_minutes, owner_whatsapp_number } = settings;
+          const data = await api("/api/admin/whatsapp/settings", {
+            method: "PUT",
+            body: JSON.stringify({ welcome_message, order_button_label, location_button_label, menu_button_label,
+                                    followup_message, followup_delay_minutes, owner_whatsapp_number }),
+          });
+          setSettings(data.settings);
+          onSaved();
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setSaving(false);
+        }
+      }
+
+      if (loading) return <div className="py-16 flex justify-center"><Loader2 className="animate-spin" style={{ color: C.inkSoft }} /></div>;
+      if (!settings) return <p className="text-sm" style={{ color: C.brick }}>{error || "Couldn't load settings."}</p>;
+
+      return (
+        <div className="space-y-5">
+          <Card>
+            <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>Daily welcome message</h2>
+            <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+              Sent once per calendar day, the first time a customer messages your number. Three quick-reply buttons appear underneath it.
+            </p>
+            <Label>Welcome text</Label>
+            <TextArea value={settings.welcome_message} onChange={(e) => set("welcome_message", e.target.value)} />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+              <div>
+                <Label>Button 1 (starts an order)</Label>
+                <TextInput value={settings.order_button_label} onChange={(e) => set("order_button_label", e.target.value)} maxLength={20} />
+              </div>
+              <div>
+                <Label>Button 2</Label>
+                <TextInput value={settings.location_button_label} onChange={(e) => set("location_button_label", e.target.value)} maxLength={20} />
+              </div>
+              <div>
+                <Label>Button 3</Label>
+                <TextInput value={settings.menu_button_label} onChange={(e) => set("menu_button_label", e.target.value)} maxLength={20} />
+              </div>
+            </div>
+            <p className="text-xs mt-2" style={{ color: C.inkSoft }}>WhatsApp caps button labels at 20 characters.</p>
+          </Card>
+
+          <Card>
+            <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>Follow-up message</h2>
+            <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+              If a customer goes quiet mid-order (stopped replying), this nudge is sent once, after the delay below.
+            </p>
+            <Label>Follow-up text</Label>
+            <TextArea value={settings.followup_message} onChange={(e) => set("followup_message", e.target.value)} />
+            <div className="mt-3 max-w-[200px]">
+              <Label>Delay (minutes)</Label>
+              <TextInput type="number" min="1" value={settings.followup_delay_minutes} onChange={(e) => set("followup_delay_minutes", e.target.value)} />
+            </div>
+          </Card>
+
+          <Card>
+            <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>Owner notifications</h2>
+            <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+              WhatsApp number to ping ("🔔 New order...") the moment a customer confirms an order. Include the country code, digits only (e.g. 77001234567).
+              Note: WhatsApp only delivers this if you've messaged the bot number yourself within the last 24 hours (Meta's free-form "customer service window") -
+              orders are always saved and visible in the main admin regardless, so treat this as a bonus ping, not the source of truth.
+            </p>
+            <Label>Owner WhatsApp number</Label>
+            <TextInput value={settings.owner_whatsapp_number || ""} onChange={(e) => set("owner_whatsapp_number", e.target.value)} placeholder="77001234567" />
+          </Card>
+
+          {error && <p className="text-sm" style={{ color: C.brick }}>{error}</p>}
+          <PrimaryButton onClick={save} disabled={saving}>
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+            {saving ? "Saving…" : "Save changes"}
+          </PrimaryButton>
+        </div>
+      );
+    }
+
+    /* ------------------------------ Keyword automations ------------------------- */
+    function KeywordEditor({ initial, onCancel, onSave }) {
+      const [keyword, setKeyword] = useState(initial?.keyword || "");
+      const [matchType, setMatchType] = useState(initial?.match_type || "contains");
+      const [response, setResponse] = useState(initial?.response || "");
+      const [active, setActive] = useState(initial?.active ?? true);
+      const [saving, setSaving] = useState(false);
+      const [error, setError] = useState("");
+
+      async function submit() {
+        if (!keyword.trim() || !response.trim()) {
+          setError("Keyword and response are both required.");
+          return;
+        }
+        setSaving(true);
+        setError("");
+        try {
+          await onSave({ keyword, matchType, response, active });
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setSaving(false);
+        }
+      }
+
+      return (
+        <div className="rounded-xl p-4 space-y-3" style={{ background: C.chip, border: `1px solid ${C.border}` }}>
+          <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-3">
+            <div>
+              <Label>Keyword or phrase</Label>
+              <TextInput value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="e.g. location" />
+            </div>
+            <div>
+              <Label>Match type</Label>
+              <select
+                value={matchType}
+                onChange={(e) => setMatchType(e.target.value)}
+                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
+                style={{ border: `1px solid ${C.border}`, color: C.ink, background: C.surface }}
+              >
+                <option value="contains">Contains (message includes this word)</option>
+                <option value="exact">Exact (message is exactly this)</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <Label>Auto-reply</Label>
+            <TextArea value={response} onChange={(e) => setResponse(e.target.value)} placeholder="What should the bot say back?" />
+          </div>
+          <label className="flex items-center gap-2 text-sm" style={{ color: C.ink }}>
+            <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> Active
+          </label>
+          {error && <p className="text-sm" style={{ color: C.brick }}>{error}</p>}
+          <div className="flex gap-2">
+            <PrimaryButton onClick={submit} disabled={saving}>
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
+            </PrimaryButton>
+            <button onClick={onCancel} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    function KeywordsTab({ token, onUnauthorized, onSaved }) {
+      const api = useApi(token, onUnauthorized);
+      const [keywords, setKeywords] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState("");
+      const [editingId, setEditingId] = useState(null); // null = none, "new" = creating
+      const [busyId, setBusyId] = useState(null);
+
+      const load = useCallback(async () => {
+        try {
+          setError("");
+          const data = await api("/api/admin/whatsapp/keywords");
+          setKeywords(data.keywords);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }, [api]);
+
+      useEffect(() => { load(); }, [load]);
+
+      async function createKeyword(values) {
+        await api("/api/admin/whatsapp/keywords", { method: "POST", body: JSON.stringify(values) });
+        setEditingId(null);
+        onSaved();
+        load();
+      }
+      async function updateKeyword(id, values) {
+        await api(`/api/admin/whatsapp/keywords/${id}`, { method: "PATCH", body: JSON.stringify(values) });
+        setEditingId(null);
+        onSaved();
+        load();
+      }
+      async function toggleActive(row) {
+        setBusyId(row.id);
+        try {
+          await api(`/api/admin/whatsapp/keywords/${row.id}`, { method: "PATCH", body: JSON.stringify({ active: !row.active }) });
+          load();
+        } catch (err) {
+          alert(err.message);
+        } finally {
+          setBusyId(null);
+        }
+      }
+      async function remove(row) {
+        if (!confirm(`Delete the "${row.keyword}" automation?`)) return;
+        setBusyId(row.id);
+        try {
+          await api(`/api/admin/whatsapp/keywords/${row.id}`, { method: "DELETE" });
+          load();
+        } catch (err) {
+          alert(err.message);
+        } finally {
+          setBusyId(null);
+        }
+      }
+
+      return (
+        <div className="space-y-4">
+          <Card>
+            <div className="flex items-center justify-between mb-1">
+              <h2 className="text-base font-semibold" style={{ color: C.ink }}>Keyword automations</h2>
+              {editingId !== "new" && (
+                <button
+                  onClick={() => setEditingId("new")}
+                  className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg"
+                  style={{ background: C.ink, color: C.bg }}
+                >
+                  <Plus size={14} /> Add
+                </button>
+              )}
+            </div>
+            <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+              When a customer's message matches one of these (and they're not in the middle of answering a specific order-flow question), the bot replies automatically instead of asking the AI to guess.
+            </p>
+
+            {editingId === "new" && (
+              <div className="mb-4">
+                <KeywordEditor onCancel={() => setEditingId(null)} onSave={createKeyword} />
+              </div>
+            )}
+
+            {loading ? (
+              <div className="py-10 flex justify-center"><Loader2 className="animate-spin" style={{ color: C.inkSoft }} /></div>
+            ) : error ? (
+              <p className="text-sm" style={{ color: C.brick }}>{error}</p>
+            ) : keywords.length === 0 ? (
+              <p className="text-sm" style={{ color: C.inkSoft }}>No keyword automations yet - add one above.</p>
+            ) : (
+              <div className="space-y-2">
+                {keywords.map((row) =>
+                  editingId === row.id ? (
+                    <KeywordEditor
+                      key={row.id}
+                      initial={row}
+                      onCancel={() => setEditingId(null)}
+                      onSave={(values) => updateKeyword(row.id, values)}
+                    />
+                  ) : (
+                    <div key={row.id} className="flex items-start gap-3 rounded-xl p-3" style={{ border: `1px solid ${C.border}` }}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="text-sm font-semibold" style={{ color: C.ink }}>"{row.keyword}"</span>
+                          <span className="text-[11px] px-1.5 py-0.5 rounded-full" style={{ background: C.chip, color: C.accentDark }}>{row.match_type}</span>
+                          {!row.active && (
+                            <span className="text-[11px] px-1.5 py-0.5 rounded-full" style={{ background: "#F6E2DC", color: C.brick }}>Paused</span>
+                          )}
+                        </div>
+                        <p className="text-sm" style={{ color: C.inkSoft }}>{row.response}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => toggleActive(row)} disabled={busyId === row.id} className="text-xs px-2 py-1 rounded-lg" style={{ border: `1px solid ${C.border}`, color: C.inkSoft }}>
+                          {row.active ? "Pause" : "Activate"}
+                        </button>
+                        <button onClick={() => setEditingId(row.id)} className="p-1.5 rounded-lg" style={{ color: C.inkSoft }}><Pencil size={14} /></button>
+                        <button onClick={() => remove(row)} disabled={busyId === row.id} className="p-1.5 rounded-lg" style={{ color: C.brick }}><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </Card>
+        </div>
+      );
+    }
+
+    /* ------------------------------- Order flow (read-only) --------------------- */
+    function FlowStep({ icon: Icon, title, desc, last }) {
+      return (
+        <div className="flex gap-3">
+          <div className="flex flex-col items-center">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: C.chip }}>
+              <Icon size={16} style={{ color: C.accentDark }} />
+            </div>
+            {!last && <div className="w-px flex-1 my-1" style={{ background: C.border }} />}
+          </div>
+          <div className="pb-6">
+            <h3 className="text-sm font-semibold" style={{ color: C.ink }}>{title}</h3>
+            <p className="text-sm" style={{ color: C.inkSoft }}>{desc}</p>
+          </div>
+        </div>
+      );
+    }
+
+    function FlowTab() {
+      return (
+        <Card>
+          <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>Built-in order-taking chain</h2>
+          <p className="text-xs mb-5" style={{ color: C.inkSoft }}>
+            This flow is always on and can't be edited here - it's triggered whenever a customer taps "{"Place an order"}" or types something like "order".
+            Item matching is AI-assisted against your real, live menu, so it understands things like "2 simit and a tea" without needing exact names.
+          </p>
+          <FlowStep icon={User} title="1. Ask name" desc="The bot asks what name to put on the order." />
+          <FlowStep icon={Hash} title="2. Ask table number" desc="The bot asks which table the customer is at." />
+          <FlowStep icon={ShoppingCart} title="3. Ask for items" desc={'Customer describes their order in plain language; the bot matches it to real menu items and prices - anything it can\'t match, it says so rather than guessing.'} />
+          <FlowStep icon={CheckCircle2} title="4. Confirm or modify" desc="Bot shows the itemized total with Confirm / Add-or-change buttons. Modify loops back to step 3, keeping the name and table already collected." last />
+          <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: C.chip }}>
+            <ArrowRight size={16} style={{ color: C.accentDark }} className="shrink-0 mt-0.5" />
+            <p className="text-sm" style={{ color: C.ink }}>
+              On confirm, the order is saved exactly like a web order (channel = "whatsapp") and appears immediately in the main admin's Orders tab - plus an optional WhatsApp ping to the owner number set under "Welcome & Follow-up".
+            </p>
+          </div>
+        </Card>
+      );
+    }
+
+    createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

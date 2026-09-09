@@ -1,0 +1,78 @@
+import { Router } from "express";
+import { verifyWhatsAppSignature } from "../lib/whatsapp.js";
+import { getWaConnection } from "../lib/waConnection.js";
+import { handleIncomingMessage } from "../lib/waBot.js";
+
+const router = Router();
+
+/**
+ * GET /api/whatsapp/webhook
+ * Meta's one-time handshake when you save the webhook URL in the App
+ * dashboard: it must echo back hub.challenge if hub.verify_token matches
+ * the token shown in the admin's Connection panel.
+ */
+router.get("/", async (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  const { verifyToken } = await getWaConnection();
+  if (mode === "subscribe" && verifyToken && token === verifyToken) {
+    return res.status(200).send(challenge);
+  }
+  return res.sendStatus(403);
+});
+
+/**
+ * POST /api/whatsapp/webhook
+ * Delivers every inbound message, status update, etc. We only care about
+ * inbound text/interactive-reply messages here; everything else (delivery
+ * receipts, etc.) is acknowledged and ignored.
+ *
+ * IMPORTANT: this must always respond 200 quickly, or Meta will retry
+ * (and keep retrying) the same payload - errors are caught and logged
+ * rather than surfaced as a failed response.
+ */
+router.post("/", async (req, res) => {
+  res.sendStatus(200); // ack immediately; process after responding
+
+  try {
+    if (!(await verifyWhatsAppSignature(req.rawBody, req.headers["x-hub-signature-256"]))) {
+      console.error("WhatsApp webhook: signature verification failed, dropping payload.");
+      return;
+    }
+
+    const entries = req.body?.entry || [];
+    for (const entry of entries) {
+      for (const change of entry.changes || []) {
+        const value = change.value || {};
+        for (const message of value.messages || []) {
+          const phoneNumber = message.from; // digits only, e.g. "77001234567"
+          const profileName = value.contacts?.[0]?.profile?.name;
+          const waMessageId = message.id;
+
+          let text = "";
+          let buttonId = null;
+          if (message.type === "text") {
+            text = message.text?.body || "";
+          } else if (message.type === "interactive") {
+            buttonId = message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || null;
+            text = message.interactive?.button_reply?.title || message.interactive?.list_reply?.title || "";
+          } else if (message.type === "button") {
+            // Reply to a template's quick-reply button, if ever used.
+            buttonId = message.button?.payload || null;
+            text = message.button?.text || "";
+          } else {
+            continue; // images, audio, location, etc. - not handled yet
+          }
+
+          await handleIncomingMessage({ phoneNumber, profileName, text, buttonId, waMessageId });
+        }
+      }
+    }
+  } catch (err) {
+    console.error("WhatsApp webhook processing error:", err);
+  }
+});
+
+export default router;

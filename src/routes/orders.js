@@ -1,12 +1,8 @@
 import { Router } from "express";
-import { randomBytes } from "crypto";
 import { supabase } from "../supabaseClient.js";
+import { generateOrderCode } from "../lib/orderCode.js";
 
 const router = Router();
-
-function generateOrderCode() {
-  return `SIM-${randomBytes(3).toString("hex").toUpperCase()}`;
-}
 
 /**
  * POST /api/orders

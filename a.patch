@@ -1,0 +1,2016 @@
+diff --git a/public/admin/index.html b/public/admin/index.html
+index 31d8244..a331a88 100644
+--- a/public/admin/index.html
++++ b/public/admin/index.html
+@@ -178,9 +178,14 @@
+               <span style={{ ...serif, color: C.ink, fontWeight: 700, fontSize: 18 }}>Simit Astana</span>
+               <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.chip, color: C.accentDark }}>Admin</span>
+             </div>
+-            <button onClick={logout} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+-              <LogOut size={14} /> Log out
+-            </button>
++            <div className="flex items-center gap-2">
++              <a href="/admin/whatsapp.html" className="text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
++                WhatsApp Bot
++              </a>
++              <button onClick={logout} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
++                <LogOut size={14} /> Log out
++              </button>
++            </div>
+           </header>
+ 
+           <nav className="px-5 pt-4 flex gap-2">
+diff --git a/public/admin/whatsapp.html b/public/admin/whatsapp.html
+new file mode 100644
+index 0000000..c18c5c8
+--- /dev/null
++++ b/public/admin/whatsapp.html
+@@ -0,0 +1,811 @@
++<!DOCTYPE html>
++<html lang="en">
++<head>
++  <meta charset="UTF-8" />
++  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++  <title>Simit Astana — WhatsApp Bot</title>
++
++  <script src="https://cdn.tailwindcss.com"></script>
++  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
++
++  <script type="importmap">
++  {
++    "imports": {
++      "react": "https://esm.sh/react@18.2.0",
++      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
++      "lucide-react": "https://esm.sh/lucide-react@0.263.1"
++    }
++  }
++  </script>
++</head>
++<body class="m-0 p-0 bg-[#F4F1EA]">
++  <div id="root"></div>
++
++  <script type="text/babel" data-type="module">
++    import React, { useState, useEffect, useCallback } from "react";
++    import { createRoot } from "react-dom/client";
++    import {
++      Lock, LogOut, MessageCircle, Sparkles, ListChecks, Plus, Pencil, Trash2,
++      X, Loader2, Save, User, Hash, ShoppingCart, CheckCircle2, ArrowRight,
++      Plug, Copy, Check, RadioTower,
++    } from "lucide-react";
++
++    /* ---------------------------------------------------------------------------
++       WhatsApp bot automation maker: welcome/follow-up messages, keyword-based
++       auto-replies, and a read-only look at the built-in order-taking chain.
++       Same auth pattern as the main admin dashboard - "Authorization: Bearer
++       <ADMIN_PASS>", stored in sessionStorage under the same key so a link
++       from the main dashboard in the same tab doesn't force a second login.
++    --------------------------------------------------------------------------- */
++
++    const C = {
++      bg: "#F4F1EA", ink: "#241C15", inkSoft: "#6B5F4F", accent: "#E7A93C",
++      accentDark: "#B9821F", brick: "#AE3B26", olive: "#5C6B35",
++      surface: "#FFFFFF", border: "#E6DBC8", chip: "#F2E8D6",
++    };
++    const sans = { fontFamily: "'Inter', system-ui, sans-serif" };
++    const serif = { fontFamily: "'Fraunces', 'Georgia', serif" };
++    const TOKEN_KEY = "simit_admin_token";
++
++    /* ------------------------------- API helper ------------------------------- */
++    function useApi(token, onUnauthorized) {
++      return useCallback(
++        async (path, options = {}) => {
++          const res = await fetch(path, {
++            ...options,
++            headers: {
++              "Content-Type": "application/json",
++              ...(token ? { Authorization: `Bearer ${token}` } : {}),
++              ...(options.headers || {}),
++            },
++          });
++          if (res.status === 401) {
++            onUnauthorized();
++            throw new Error("Unauthorized");
++          }
++          if (res.status === 204) return null;
++          const data = await res.json().catch(() => null);
++          if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
++          return data;
++        },
++        [token, onUnauthorized]
++      );
++    }
++
++    /* -------------------------------- Login ----------------------------------- */
++    function LoginScreen({ onLoggedIn }) {
++      const [password, setPassword] = useState("");
++      const [error, setError] = useState("");
++      const [loading, setLoading] = useState(false);
++
++      async function submit(e) {
++        e.preventDefault();
++        setLoading(true);
++        setError("");
++        try {
++          const res = await fetch("/api/admin/login", {
++            method: "POST",
++            headers: { "Content-Type": "application/json" },
++            body: JSON.stringify({ password }),
++          });
++          const data = await res.json();
++          if (!res.ok) throw new Error(data.error || "Incorrect password.");
++          onLoggedIn(data.token);
++        } catch (err) {
++          setError(err.message);
++        } finally {
++          setLoading(false);
++        }
++      }
++
++      return (
++        <div className="min-h-screen flex items-center justify-center px-4" style={{ background: C.bg, ...sans }}>
++          <form onSubmit={submit} className="w-full max-w-sm rounded-2xl p-8" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
++            <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: C.chip }}>
++              <Lock size={20} style={{ color: C.accentDark }} />
++            </div>
++            <h1 className="text-xl mb-1" style={{ ...serif, color: C.ink, fontWeight: 600 }}>WhatsApp Bot</h1>
++            <p className="text-sm mb-5" style={{ color: C.inkSoft }}>Enter the staff password to continue.</p>
++            <input
++              type="password"
++              autoFocus
++              value={password}
++              onChange={(e) => setPassword(e.target.value)}
++              placeholder="Password"
++              className="w-full rounded-lg px-3 py-2.5 text-sm mb-3 outline-none"
++              style={{ border: `1px solid ${C.border}`, color: C.ink }}
++            />
++            {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
++            <button
++              type="submit"
++              disabled={loading || !password}
++              className="w-full rounded-lg py-2.5 text-sm font-semibold disabled:opacity-50"
++              style={{ background: C.ink, color: C.bg }}
++            >
++              {loading ? "Checking…" : "Sign in"}
++            </button>
++          </form>
++        </div>
++      );
++    }
++
++    /* ------------------------------ Small pieces ------------------------------- */
++    function Card({ children, className = "" }) {
++      return (
++        <div className={`rounded-2xl p-5 ${className}`} style={{ background: C.surface, border: `1px solid ${C.border}` }}>
++          {children}
++        </div>
++      );
++    }
++    function Label({ children }) {
++      return <label className="block text-xs font-semibold mb-1.5" style={{ color: C.inkSoft }}>{children}</label>;
++    }
++    function TextInput(props) {
++      return (
++        <input
++          {...props}
++          className="w-full rounded-lg px-3 py-2 text-sm outline-none"
++          style={{ border: `1px solid ${C.border}`, color: C.ink }}
++        />
++      );
++    }
++    function TextArea(props) {
++      return (
++        <textarea
++          {...props}
++          className="w-full rounded-lg px-3 py-2 text-sm outline-none resize-y"
++          style={{ border: `1px solid ${C.border}`, color: C.ink, minHeight: 90 }}
++        />
++      );
++    }
++    function PrimaryButton({ children, ...props }) {
++      return (
++        <button
++          {...props}
++          className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
++          style={{ background: C.ink, color: C.bg }}
++        >
++          {children}
++        </button>
++      );
++    }
++
++    /* -------------------------------- Shell ------------------------------------ */
++    function App() {
++      const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY));
++      const [tab, setTab] = useState("connection");
++      const [savedFlash, setSavedFlash] = useState(false);
++
++      function handleLoggedIn(t) {
++        sessionStorage.setItem(TOKEN_KEY, t);
++        setToken(t);
++      }
++      const handleUnauthorized = useCallback(() => {
++        sessionStorage.removeItem(TOKEN_KEY);
++        setToken(null);
++      }, []);
++      function logout() {
++        sessionStorage.removeItem(TOKEN_KEY);
++        setToken(null);
++      }
++      function flashSaved() {
++        setSavedFlash(true);
++        setTimeout(() => setSavedFlash(false), 2000);
++      }
++
++      if (!token) return <LoginScreen onLoggedIn={handleLoggedIn} />;
++
++      return (
++        <div className="min-h-screen" style={{ background: C.bg, ...sans }}>
++          <header className="sticky top-0 z-20 px-5 py-3 flex items-center justify-between" style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
++            <div className="flex items-center gap-2">
++              <MessageCircle size={18} style={{ color: C.olive }} />
++              <span style={{ ...serif, color: C.ink, fontWeight: 700, fontSize: 18 }}>Simit Astana</span>
++              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.chip, color: C.accentDark }}>WhatsApp Bot</span>
++            </div>
++            <div className="flex items-center gap-3">
++              {savedFlash && (
++                <span className="flex items-center gap-1 text-xs font-medium" style={{ color: C.olive }}>
++                  <CheckCircle2 size={14} /> Saved
++                </span>
++              )}
++              <a href="/admin/index.html" className="text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
++                ← Main admin
++              </a>
++              <button onClick={logout} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
++                <LogOut size={14} /> Log out
++              </button>
++            </div>
++          </header>
++
++          <nav className="px-5 pt-4 flex gap-2">
++            <TabButton active={tab === "connection"} onClick={() => setTab("connection")} icon={Plug}>Connection</TabButton>
++            <TabButton active={tab === "messages"} onClick={() => setTab("messages")} icon={Sparkles}>Welcome & Follow-up</TabButton>
++            <TabButton active={tab === "keywords"} onClick={() => setTab("keywords")} icon={ListChecks}>Keyword Automations</TabButton>
++            <TabButton active={tab === "flow"} onClick={() => setTab("flow")} icon={ShoppingCart}>Order Flow</TabButton>
++          </nav>
++
++          <main className="p-5 max-w-4xl mx-auto">
++            {tab === "connection" && <ConnectionTab token={token} onUnauthorized={handleUnauthorized} onSaved={flashSaved} />}
++            {tab === "messages" && <MessagesTab token={token} onUnauthorized={handleUnauthorized} onSaved={flashSaved} />}
++            {tab === "keywords" && <KeywordsTab token={token} onUnauthorized={handleUnauthorized} onSaved={flashSaved} />}
++            {tab === "flow" && <FlowTab />}
++          </main>
++        </div>
++      );
++    }
++
++    function TabButton({ active, onClick, icon: Icon, children }) {
++      return (
++        <button
++          onClick={onClick}
++          className="flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-t-lg transition"
++          style={{
++            background: active ? C.surface : "transparent",
++            color: active ? C.ink : C.inkSoft,
++            border: `1px solid ${active ? C.border : "transparent"}`,
++            borderBottom: active ? `1px solid ${C.surface}` : "1px solid transparent",
++            marginBottom: -1,
++          }}
++        >
++          <Icon size={15} /> {children}
++        </button>
++      );
++    }
++
++    /* --------------------------------- Connection -------------------------------- */
++    function CopyField({ label, value, hint }) {
++      const [copied, setCopied] = useState(false);
++      function copy() {
++        navigator.clipboard.writeText(value || "");
++        setCopied(true);
++        setTimeout(() => setCopied(false), 1500);
++      }
++      return (
++        <div>
++          <Label>{label}</Label>
++          <div className="flex gap-2">
++            <TextInput value={value || ""} readOnly onClick={(e) => e.target.select()} />
++            <button onClick={copy} className="shrink-0 px-3 rounded-lg text-sm flex items-center gap-1" style={{ border: `1px solid ${C.border}`, color: C.inkSoft }}>
++              {copied ? <Check size={14} /> : <Copy size={14} />}
++            </button>
++          </div>
++          {hint && <p className="text-xs mt-1" style={{ color: C.inkSoft }}>{hint}</p>}
++        </div>
++      );
++    }
++
++    function ConnectionTab({ token, onUnauthorized, onSaved }) {
++      const api = useApi(token, onUnauthorized);
++      const [connection, setConnection] = useState(null);
++      const [loading, setLoading] = useState(true);
++      const [error, setError] = useState("");
++
++      // Form state for (re)connecting.
++      const [wabaId, setWabaId] = useState("");
++      const [accessToken, setAccessToken] = useState("");
++      const [appSecret, setAppSecret] = useState("");
++      const [numbers, setNumbers] = useState(null); // null = not looked up yet
++      const [selectedNumberId, setSelectedNumberId] = useState("");
++      const [looking, setLooking] = useState(false);
++      const [saving, setSaving] = useState(false);
++
++      const load = useCallback(async () => {
++        try {
++          const data = await api("/api/admin/whatsapp/connection");
++          setConnection(data.connection);
++        } catch (err) {
++          setError(err.message);
++        } finally {
++          setLoading(false);
++        }
++      }, [api]);
++
++      useEffect(() => { load(); }, [load]);
++
++      async function lookupNumbers() {
++        if (!wabaId.trim() || !accessToken.trim()) {
++          setError("Paste both the WABA ID and the access token first.");
++          return;
++        }
++        setLooking(true);
++        setError("");
++        setNumbers(null);
++        try {
++          const data = await api("/api/admin/whatsapp/connection/lookup", {
++            method: "POST",
++            body: JSON.stringify({ wabaId, accessToken }),
++          });
++          setNumbers(data.numbers);
++          // Only one number on this WABA - select it automatically, no picker needed.
++          if (data.numbers.length === 1) setSelectedNumberId(data.numbers[0].id);
++        } catch (err) {
++          setError(err.message);
++        } finally {
++          setLooking(false);
++        }
++      }
++
++      async function connect() {
++        const chosen = numbers?.find((n) => n.id === selectedNumberId);
++        if (!chosen) {
++          setError("Pick a phone number first.");
++          return;
++        }
++        setSaving(true);
++        setError("");
++        try {
++          const data = await api("/api/admin/whatsapp/connection", {
++            method: "POST",
++            body: JSON.stringify({
++              wabaId,
++              accessToken,
++              phoneNumberId: chosen.id,
++              phoneNumberDisplay: chosen.displayPhoneNumber,
++              ...(appSecret.trim() ? { appSecret } : {}),
++            }),
++          });
++          setConnection(data.connection);
++          setNumbers(null);
++          setAccessToken("");
++          setAppSecret("");
++          onSaved();
++        } catch (err) {
++          setError(err.message);
++        } finally {
++          setSaving(false);
++        }
++      }
++
++      if (loading) return <div className="py-16 flex justify-center"><Loader2 className="animate-spin" style={{ color: C.inkSoft }} /></div>;
++
++      return (
++        <div className="space-y-5">
++          {connection?.phoneNumberId && (
++            <Card>
++              <div className="flex items-center gap-2 mb-1">
++                <RadioTower size={16} style={{ color: C.olive }} />
++                <h2 className="text-base font-semibold" style={{ color: C.ink }}>Connected</h2>
++              </div>
++              <p className="text-sm mb-4" style={{ color: C.inkSoft }}>
++                {connection.phoneNumberDisplay || connection.phoneNumberId} is live and receiving messages.
++              </p>
++              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
++                <div><span style={{ color: C.inkSoft }}>WABA ID:</span> <span style={{ color: C.ink }}>{connection.wabaId}</span></div>
++                <div><span style={{ color: C.inkSoft }}>Access token:</span> <span style={{ color: C.ink }}>{connection.accessTokenMasked}</span></div>
++                <div><span style={{ color: C.inkSoft }}>App secret:</span> <span style={{ color: C.ink }}>{connection.appSecretSet ? "set" : "not set"}</span></div>
++              </div>
++            </Card>
++          )}
++
++          <Card>
++            <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>
++              {connection?.phoneNumberId ? "Reconnect / switch number" : "Connect WhatsApp"}
++            </h2>
++            <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
++              Paste your WhatsApp Business Account (WABA) ID and a permanent access token from Meta's App dashboard. We'll fetch the phone numbers registered under it - pick the one you want to use.
++            </p>
++
++            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
++              <div>
++                <Label>WABA ID</Label>
++                <TextInput value={wabaId} onChange={(e) => { setWabaId(e.target.value); setNumbers(null); }} placeholder="e.g. 123456789012345" />
++              </div>
++              <div>
++                <Label>Access token</Label>
++                <TextInput type="password" value={accessToken} onChange={(e) => { setAccessToken(e.target.value); setNumbers(null); }} placeholder="EAAG..." />
++              </div>
++            </div>
++            <div className="mb-4">
++              <Label>App secret (optional, for webhook signature verification)</Label>
++              <TextInput type="password" value={appSecret} onChange={(e) => setAppSecret(e.target.value)} placeholder="Leave blank to skip verification" />
++            </div>
++
++            {numbers === null && (
++              <PrimaryButton onClick={lookupNumbers} disabled={looking}>
++                {looking ? <Loader2 size={15} className="animate-spin" /> : <RadioTower size={15} />}
++                {looking ? "Looking up numbers…" : "Find numbers"}
++              </PrimaryButton>
++            )}
++
++            {numbers && numbers.length > 1 && (
++              <div className="space-y-2 mb-4">
++                <Label>Choose a number</Label>
++                {numbers.map((n) => (
++                  <label
++                    key={n.id}
++                    className="flex items-center gap-3 rounded-lg p-3 cursor-pointer"
++                    style={{ border: `1px solid ${selectedNumberId === n.id ? C.accentDark : C.border}`, background: selectedNumberId === n.id ? C.chip : "transparent" }}
++                  >
++                    <input type="radio" name="wa-number" checked={selectedNumberId === n.id} onChange={() => setSelectedNumberId(n.id)} />
++                    <div>
++                      <div className="text-sm font-semibold" style={{ color: C.ink }}>{n.displayPhoneNumber}</div>
++                      <div className="text-xs" style={{ color: C.inkSoft }}>{n.verifiedName} {n.qualityRating ? `· quality: ${n.qualityRating}` : ""}</div>
++                    </div>
++                  </label>
++                ))}
++              </div>
++            )}
++
++            {numbers && numbers.length === 1 && (
++              <div className="rounded-lg p-3 mb-4 flex items-center gap-3" style={{ background: C.chip }}>
++                <Check size={16} style={{ color: C.olive }} />
++                <div className="text-sm" style={{ color: C.ink }}>
++                  Only one number found - <strong>{numbers[0].displayPhoneNumber}</strong> ({numbers[0].verifiedName}) selected automatically.
++                </div>
++              </div>
++            )}
++
++            {numbers && numbers.length === 0 && (
++              <p className="text-sm mb-4" style={{ color: C.brick }}>No phone numbers found on that WABA.</p>
++            )}
++
++            {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
++
++            {numbers && numbers.length > 0 && (
++              <div className="flex gap-2">
++                <PrimaryButton onClick={connect} disabled={saving || !selectedNumberId}>
++                  {saving ? <Loader2 size={15} className="animate-spin" /> : <Plug size={15} />}
++                  {saving ? "Connecting…" : "Connect this number"}
++                </PrimaryButton>
++                <button onClick={() => setNumbers(null)} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
++                  Back
++                </button>
++              </div>
++            )}
++          </Card>
++
++          {connection?.webhookUrl && (
++            <Card>
++              <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>Webhook setup (Meta App dashboard)</h2>
++              <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
++                In WhatsApp → Configuration in your Meta App, paste these into the Callback URL and Verify Token fields, then subscribe to the "messages" field.
++              </p>
++              <div className="space-y-3">
++                <CopyField label="Callback URL" value={connection.webhookUrl} />
++                <CopyField label="Verify token" value={connection.verifyToken} />
++              </div>
++            </Card>
++          )}
++        </div>
++      );
++    }
++
++    /* --------------------------- Welcome & Follow-up ---------------------------- */
++    function MessagesTab({ token, onUnauthorized, onSaved }) {
++      const api = useApi(token, onUnauthorized);
++      const [settings, setSettings] = useState(null);
++      const [loading, setLoading] = useState(true);
++      const [saving, setSaving] = useState(false);
++      const [error, setError] = useState("");
++
++      useEffect(() => {
++        api("/api/admin/whatsapp/settings")
++          .then((data) => setSettings(data.settings))
++          .catch((err) => setError(err.message))
++          .finally(() => setLoading(false));
++      }, [api]);
++
++      function set(field, value) {
++        setSettings((s) => ({ ...s, [field]: value }));
++      }
++
++      async function save() {
++        setSaving(true);
++        setError("");
++        try {
++          const { welcome_message, order_button_label, location_button_label, menu_button_label,
++                  followup_message, followup_delay_minutes, owner_whatsapp_number } = settings;
++          const data = await api("/api/admin/whatsapp/settings", {
++            method: "PUT",
++            body: JSON.stringify({ welcome_message, order_button_label, location_button_label, menu_button_label,
++                                    followup_message, followup_delay_minutes, owner_whatsapp_number }),
++          });
++          setSettings(data.settings);
++          onSaved();
++        } catch (err) {
++          setError(err.message);
++        } finally {
++          setSaving(false);
++        }
++      }
++
++      if (loading) return <div className="py-16 flex justify-center"><Loader2 className="animate-spin" style={{ color: C.inkSoft }} /></div>;
++      if (!settings) return <p className="text-sm" style={{ color: C.brick }}>{error || "Couldn't load settings."}</p>;
++
++      return (
++        <div className="space-y-5">
++          <Card>
++            <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>Daily welcome message</h2>
++            <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
++              Sent once per calendar day, the first time a customer messages your number. Three quick-reply buttons appear underneath it.
++            </p>
++            <Label>Welcome text</Label>
++            <TextArea value={settings.welcome_message} onChange={(e) => set("welcome_message", e.target.value)} />
++            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
++              <div>
++                <Label>Button 1 (starts an order)</Label>
++                <TextInput value={settings.order_button_label} onChange={(e) => set("order_button_label", e.target.value)} maxLength={20} />
++              </div>
++              <div>
++                <Label>Button 2</Label>
++                <TextInput value={settings.location_button_label} onChange={(e) => set("location_button_label", e.target.value)} maxLength={20} />
++              </div>
++              <div>
++                <Label>Button 3</Label>
++                <TextInput value={settings.menu_button_label} onChange={(e) => set("menu_button_label", e.target.value)} maxLength={20} />
++              </div>
++            </div>
++            <p className="text-xs mt-2" style={{ color: C.inkSoft }}>WhatsApp caps button labels at 20 characters.</p>
++          </Card>
++
++          <Card>
++            <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>Follow-up message</h2>
++            <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
++              If a customer goes quiet mid-order (stopped replying), this nudge is sent once, after the delay below.
++            </p>
++            <Label>Follow-up text</Label>
++            <TextArea value={settings.followup_message} onChange={(e) => set("followup_message", e.target.value)} />
++            <div className="mt-3 max-w-[200px]">
++              <Label>Delay (minutes)</Label>
++              <TextInput type="number" min="1" value={settings.followup_delay_minutes} onChange={(e) => set("followup_delay_minutes", e.target.value)} />
++            </div>
++          </Card>
++
++          <Card>
++            <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>Owner notifications</h2>
++            <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
++              WhatsApp number to ping ("🔔 New order...") the moment a customer confirms an order. Include the country code, digits only (e.g. 77001234567).
++              Note: WhatsApp only delivers this if you've messaged the bot number yourself within the last 24 hours (Meta's free-form "customer service window") -
++              orders are always saved and visible in the main admin regardless, so treat this as a bonus ping, not the source of truth.
++            </p>
++            <Label>Owner WhatsApp number</Label>
++            <TextInput value={settings.owner_whatsapp_number || ""} onChange={(e) => set("owner_whatsapp_number", e.target.value)} placeholder="77001234567" />
++          </Card>
++
++          {error && <p className="text-sm" style={{ color: C.brick }}>{error}</p>}
++          <PrimaryButton onClick={save} disabled={saving}>
++            {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
++            {saving ? "Saving…" : "Save changes"}
++          </PrimaryButton>
++        </div>
++      );
++    }
++
++    /* ------------------------------ Keyword automations ------------------------- */
++    function KeywordEditor({ initial, onCancel, onSave }) {
++      const [keyword, setKeyword] = useState(initial?.keyword || "");
++      const [matchType, setMatchType] = useState(initial?.match_type || "contains");
++      const [response, setResponse] = useState(initial?.response || "");
++      const [active, setActive] = useState(initial?.active ?? true);
++      const [saving, setSaving] = useState(false);
++      const [error, setError] = useState("");
++
++      async function submit() {
++        if (!keyword.trim() || !response.trim()) {
++          setError("Keyword and response are both required.");
++          return;
++        }
++        setSaving(true);
++        setError("");
++        try {
++          await onSave({ keyword, matchType, response, active });
++        } catch (err) {
++          setError(err.message);
++        } finally {
++          setSaving(false);
++        }
++      }
++
++      return (
++        <div className="rounded-xl p-4 space-y-3" style={{ background: C.chip, border: `1px solid ${C.border}` }}>
++          <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-3">
++            <div>
++              <Label>Keyword or phrase</Label>
++              <TextInput value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="e.g. location" />
++            </div>
++            <div>
++              <Label>Match type</Label>
++              <select
++                value={matchType}
++                onChange={(e) => setMatchType(e.target.value)}
++                className="w-full rounded-lg px-3 py-2 text-sm outline-none"
++                style={{ border: `1px solid ${C.border}`, color: C.ink, background: C.surface }}
++              >
++                <option value="contains">Contains (message includes this word)</option>
++                <option value="exact">Exact (message is exactly this)</option>
++              </select>
++            </div>
++          </div>
++          <div>
++            <Label>Auto-reply</Label>
++            <TextArea value={response} onChange={(e) => setResponse(e.target.value)} placeholder="What should the bot say back?" />
++          </div>
++          <label className="flex items-center gap-2 text-sm" style={{ color: C.ink }}>
++            <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> Active
++          </label>
++          {error && <p className="text-sm" style={{ color: C.brick }}>{error}</p>}
++          <div className="flex gap-2">
++            <PrimaryButton onClick={submit} disabled={saving}>
++              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save
++            </PrimaryButton>
++            <button onClick={onCancel} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
++              Cancel
++            </button>
++          </div>
++        </div>
++      );
++    }
++
++    function KeywordsTab({ token, onUnauthorized, onSaved }) {
++      const api = useApi(token, onUnauthorized);
++      const [keywords, setKeywords] = useState([]);
++      const [loading, setLoading] = useState(true);
++      const [error, setError] = useState("");
++      const [editingId, setEditingId] = useState(null); // null = none, "new" = creating
++      const [busyId, setBusyId] = useState(null);
++
++      const load = useCallback(async () => {
++        try {
++          setError("");
++          const data = await api("/api/admin/whatsapp/keywords");
++          setKeywords(data.keywords);
++        } catch (err) {
++          setError(err.message);
++        } finally {
++          setLoading(false);
++        }
++      }, [api]);
++
++      useEffect(() => { load(); }, [load]);
++
++      async function createKeyword(values) {
++        await api("/api/admin/whatsapp/keywords", { method: "POST", body: JSON.stringify(values) });
++        setEditingId(null);
++        onSaved();
++        load();
++      }
++      async function updateKeyword(id, values) {
++        await api(`/api/admin/whatsapp/keywords/${id}`, { method: "PATCH", body: JSON.stringify(values) });
++        setEditingId(null);
++        onSaved();
++        load();
++      }
++      async function toggleActive(row) {
++        setBusyId(row.id);
++        try {
++          await api(`/api/admin/whatsapp/keywords/${row.id}`, { method: "PATCH", body: JSON.stringify({ active: !row.active }) });
++          load();
++        } catch (err) {
++          alert(err.message);
++        } finally {
++          setBusyId(null);
++        }
++      }
++      async function remove(row) {
++        if (!confirm(`Delete the "${row.keyword}" automation?`)) return;
++        setBusyId(row.id);
++        try {
++          await api(`/api/admin/whatsapp/keywords/${row.id}`, { method: "DELETE" });
++          load();
++        } catch (err) {
++          alert(err.message);
++        } finally {
++          setBusyId(null);
++        }
++      }
++
++      return (
++        <div className="space-y-4">
++          <Card>
++            <div className="flex items-center justify-between mb-1">
++              <h2 className="text-base font-semibold" style={{ color: C.ink }}>Keyword automations</h2>
++              {editingId !== "new" && (
++                <button
++                  onClick={() => setEditingId("new")}
++                  className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg"
++                  style={{ background: C.ink, color: C.bg }}
++                >
++                  <Plus size={14} /> Add
++                </button>
++              )}
++            </div>
++            <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
++              When a customer's message matches one of these (and they're not in the middle of answering a specific order-flow question), the bot replies automatically instead of asking the AI to guess.
++            </p>
++
++            {editingId === "new" && (
++              <div className="mb-4">
++                <KeywordEditor onCancel={() => setEditingId(null)} onSave={createKeyword} />
++              </div>
++            )}
++
++            {loading ? (
++              <div className="py-10 flex justify-center"><Loader2 className="animate-spin" style={{ color: C.inkSoft }} /></div>
++            ) : error ? (
++              <p className="text-sm" style={{ color: C.brick }}>{error}</p>
++            ) : keywords.length === 0 ? (
++              <p className="text-sm" style={{ color: C.inkSoft }}>No keyword automations yet - add one above.</p>
++            ) : (
++              <div className="space-y-2">
++                {keywords.map((row) =>
++                  editingId === row.id ? (
++                    <KeywordEditor
++                      key={row.id}
++                      initial={row}
++                      onCancel={() => setEditingId(null)}
++                      onSave={(values) => updateKeyword(row.id, values)}
++                    />
++                  ) : (
++                    <div key={row.id} className="flex items-start gap-3 rounded-xl p-3" style={{ border: `1px solid ${C.border}` }}>
++                      <div className="flex-1 min-w-0">
++                        <div className="flex items-center gap-2 flex-wrap mb-1">
++                          <span className="text-sm font-semibold" style={{ color: C.ink }}>"{row.keyword}"</span>
++                          <span className="text-[11px] px-1.5 py-0.5 rounded-full" style={{ background: C.chip, color: C.accentDark }}>{row.match_type}</span>
++                          {!row.active && (
++                            <span className="text-[11px] px-1.5 py-0.5 rounded-full" style={{ background: "#F6E2DC", color: C.brick }}>Paused</span>
++                          )}
++                        </div>
++                        <p className="text-sm" style={{ color: C.inkSoft }}>{row.response}</p>
++                      </div>
++                      <div className="flex items-center gap-1 shrink-0">
++                        <button onClick={() => toggleActive(row)} disabled={busyId === row.id} className="text-xs px-2 py-1 rounded-lg" style={{ border: `1px solid ${C.border}`, color: C.inkSoft }}>
++                          {row.active ? "Pause" : "Activate"}
++                        </button>
++                        <button onClick={() => setEditingId(row.id)} className="p-1.5 rounded-lg" style={{ color: C.inkSoft }}><Pencil size={14} /></button>
++                        <button onClick={() => remove(row)} disabled={busyId === row.id} className="p-1.5 rounded-lg" style={{ color: C.brick }}><Trash2 size={14} /></button>
++                      </div>
++                    </div>
++                  )
++                )}
++              </div>
++            )}
++          </Card>
++        </div>
++      );
++    }
++
++    /* ------------------------------- Order flow (read-only) --------------------- */
++    function FlowStep({ icon: Icon, title, desc, last }) {
++      return (
++        <div className="flex gap-3">
++          <div className="flex flex-col items-center">
++            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: C.chip }}>
++              <Icon size={16} style={{ color: C.accentDark }} />
++            </div>
++            {!last && <div className="w-px flex-1 my-1" style={{ background: C.border }} />}
++          </div>
++          <div className="pb-6">
++            <h3 className="text-sm font-semibold" style={{ color: C.ink }}>{title}</h3>
++            <p className="text-sm" style={{ color: C.inkSoft }}>{desc}</p>
++          </div>
++        </div>
++      );
++    }
++
++    function FlowTab() {
++      return (
++        <Card>
++          <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>Built-in order-taking chain</h2>
++          <p className="text-xs mb-5" style={{ color: C.inkSoft }}>
++            This flow is always on and can't be edited here - it's triggered whenever a customer taps "{"Place an order"}" or types something like "order".
++            Item matching is AI-assisted against your real, live menu, so it understands things like "2 simit and a tea" without needing exact names.
++          </p>
++          <FlowStep icon={User} title="1. Ask name" desc="The bot asks what name to put on the order." />
++          <FlowStep icon={Hash} title="2. Ask table number" desc="The bot asks which table the customer is at." />
++          <FlowStep icon={ShoppingCart} title="3. Ask for items" desc={'Customer describes their order in plain language; the bot matches it to real menu items and prices - anything it can\'t match, it says so rather than guessing.'} />
++          <FlowStep icon={CheckCircle2} title="4. Confirm or modify" desc="Bot shows the itemized total with Confirm / Add-or-change buttons. Modify loops back to step 3, keeping the name and table already collected." last />
++          <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: C.chip }}>
++            <ArrowRight size={16} style={{ color: C.accentDark }} className="shrink-0 mt-0.5" />
++            <p className="text-sm" style={{ color: C.ink }}>
++              On confirm, the order is saved exactly like a web order (channel = "whatsapp") and appears immediately in the main admin's Orders tab - plus an optional WhatsApp ping to the owner number set under "Welcome & Follow-up".
++            </p>
++          </div>
++        </Card>
++      );
++    }
++
++    createRoot(document.getElementById("root")).render(<App />);
++  </script>
++</body>
++</html>
+diff --git a/src/index.js b/src/index.js
+index 73afbb0..7a5fa6c 100644
+--- a/src/index.js
++++ b/src/index.js
+@@ -12,12 +12,20 @@ import adminSessionRouter from "./routes/adminSession.js";
+ import adminOrdersRouter from "./routes/adminOrders.js";
+ import adminProductsRouter from "./routes/adminProducts.js";
+ import adminCategoriesRouter from "./routes/adminCategories.js";
++import whatsappWebhookRouter from "./routes/whatsappWebhook.js";
++import adminWhatsappSettingsRouter from "./routes/adminWhatsappSettings.js";
++import adminWhatsappKeywordsRouter from "./routes/adminWhatsappKeywords.js";
++import adminWhatsappConnectionRouter from "./routes/adminWhatsappConnection.js";
++import { sendPendingFollowups } from "./lib/waBot.js";
+ 
+ const __dirname = path.dirname(fileURLToPath(import.meta.url));
+ const app = express();
+ 
+ app.use(cors({ origin: process.env.FRONTEND_ORIGIN || "*" }));
+-app.use(express.json());
++// `verify` stashes the raw request body on req.rawBody - the WhatsApp
++// webhook needs the exact bytes (not the reserialized object) to check
++// Meta's X-Hub-Signature-256 header.
++app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
+ 
+ app.get("/health", (req, res) => res.json({ status: "ok" }));
+ 
+@@ -35,6 +43,13 @@ app.use("/api/admin/login", adminSessionRouter);
+ app.use("/api/admin/orders", adminAuth, adminOrdersRouter);
+ app.use("/api/admin/products", adminAuth, adminProductsRouter);
+ app.use("/api/admin/categories", adminAuth, adminCategoriesRouter);
++app.use("/api/admin/whatsapp/settings", adminAuth, adminWhatsappSettingsRouter);
++app.use("/api/admin/whatsapp/keywords", adminAuth, adminWhatsappKeywordsRouter);
++app.use("/api/admin/whatsapp/connection", adminAuth, adminWhatsappConnectionRouter);
++
++// Meta's webhook - no adminAuth (Meta can't send our admin password), it's
++// gated instead by the verify token (GET) and X-Hub-Signature-256 (POST).
++app.use("/api/whatsapp/webhook", whatsappWebhookRouter);
+ 
+ // Serve the customer-facing frontend (public/index.html) at the root,
+ // same-origin as the API - so fetch("/api/menu") just works with no
+@@ -53,3 +68,9 @@ const PORT = process.env.PORT || 3000;
+ app.listen(PORT, () => {
+   console.log(`Simit Astana server listening on port ${PORT}`);
+ });
++
++// Checks every minute for WhatsApp conversations that have gone quiet
++// mid-order and sends the admin-configured follow-up nudge once each.
++setInterval(() => {
++  sendPendingFollowups().catch((err) => console.error("sendPendingFollowups crashed:", err));
++}, 60 * 1000);
+diff --git a/src/lib/orderCode.js b/src/lib/orderCode.js
+new file mode 100644
+index 0000000..53fa52f
+--- /dev/null
++++ b/src/lib/orderCode.js
+@@ -0,0 +1,5 @@
++import { randomBytes } from "crypto";
++
++export function generateOrderCode() {
++  return `SIM-${randomBytes(3).toString("hex").toUpperCase()}`;
++}
+diff --git a/src/lib/waBot.js b/src/lib/waBot.js
+new file mode 100644
+index 0000000..ff39393
+--- /dev/null
++++ b/src/lib/waBot.js
+@@ -0,0 +1,449 @@
++import { supabase } from "../supabaseClient.js";
++import { generateOrderCode } from "./orderCode.js";
++import { callDashScopeChat } from "./dashscope.js";
++import { sendWhatsAppText, sendWhatsAppButtons } from "./whatsapp.js";
++
++const BUTTON_ORDER = "order";
++const BUTTON_LOCATION = "location";
++const BUTTON_MENU = "menu";
++const BUTTON_CONFIRM = "confirm_order";
++const BUTTON_MODIFY = "modify_order";
++
++function todayStr() {
++  return new Date().toISOString().slice(0, 10);
++}
++
++async function getSettings() {
++  const { data, error } = await supabase.from("wa_settings").select("*").eq("id", 1).single();
++  if (error) throw error;
++  return data;
++}
++
++async function getOrCreateConversation(phoneNumber, profileName) {
++  const { data: existing, error } = await supabase
++    .from("wa_conversations")
++    .select("*")
++    .eq("phone_number", phoneNumber)
++    .maybeSingle();
++  if (error) throw error;
++  if (existing) return existing;
++
++  const { data: created, error: insertError } = await supabase
++    .from("wa_conversations")
++    .insert({ phone_number: phoneNumber, profile_name: profileName || null })
++    .select()
++    .single();
++  if (insertError) throw insertError;
++  return created;
++}
++
++async function updateConversation(id, patch) {
++  const { data, error } = await supabase
++    .from("wa_conversations")
++    .update({ ...patch, last_message_at: new Date().toISOString(), followup_sent: false })
++    .eq("id", id)
++    .select()
++    .single();
++  if (error) throw error;
++  return data;
++}
++
++async function logMessage(conversationId, direction, body, waMessageId) {
++  // waMessageId is only present (and used as the PK) for inbound messages,
++  // which is what lets us dedupe webhook retries. Outbound log rows get a
++  // random id since Graph API message ids for sends aren't threaded back
++  // here synchronously in every code path.
++  const id = waMessageId || `out_${Date.now()}_${Math.random().toString(36).slice(2)}`;
++  const { error } = await supabase
++    .from("wa_messages")
++    .insert({ id, conversation_id: conversationId, direction, body });
++  // Ignore unique-violation (23505) - it just means we've already logged
++  // (and therefore already processed) this exact inbound message id.
++  if (error && error.code !== "23505") console.error("wa_messages insert failed:", error.message);
++  return !error || error.code !== "23505";
++}
++
++async function findKeywordMatch(text) {
++  const normalized = text.trim().toLowerCase();
++  if (!normalized) return null;
++
++  const { data: keywords, error } = await supabase
++    .from("wa_keywords")
++    .select("*")
++    .eq("active", true)
++    .order("sort_order", { ascending: true });
++  if (error) throw error;
++
++  return (
++    keywords.find((k) => {
++      const kw = k.keyword.trim().toLowerCase();
++      return k.match_type === "exact" ? normalized === kw : normalized.includes(kw);
++    }) || null
++  );
++}
++
++async function getActiveMenu() {
++  const { data: products, error } = await supabase
++    .from("products")
++    .select("id, slug, name, price, currency")
++    .eq("active", true)
++    .eq("coming_soon", false);
++  if (error) throw error;
++  return products;
++}
++
++/**
++ * Uses the same grounded-JSON pattern as the web assistant (src/routes/assistant.js):
++ * give the model the real menu, ask it to match freeform text to slugs +
++ * quantities, then validate everything it returns against the real product
++ * list before trusting a single price or name. The model can hallucinate a
++ * slug; the price shown to the customer never comes from the model itself.
++ */
++async function matchItemsWithAI(text, products) {
++  const menuForPrompt = products.map((p) => ({
++    slug: p.slug,
++    name: p.name?.en || Object.values(p.name || {})[0] || p.slug,
++    price: p.price,
++  }));
++
++  const messages = [
++    {
++      role: "system",
++      content: `Match the customer's freeform order text to items from this menu. Reply with ONLY this JSON shape, no commentary:
++{"items": [{"slug": "<menu slug>", "quantity": <integer>}], "unmatchedText": "<any part of the message you couldn't match to a menu item, or empty string>"}
++Only use slugs that appear in MENU below - never invent one. If quantity isn't stated, use 1.
++
++MENU:
++${JSON.stringify(menuForPrompt)}`,
++    },
++    { role: "user", content: text.slice(0, 1000) },
++  ];
++
++  const raw = await callDashScopeChat(messages);
++  const cleaned = raw.trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim();
++  const parsed = JSON.parse(cleaned);
++
++  const bySlug = new Map(products.map((p) => [p.slug, p]));
++  const items = (Array.isArray(parsed.items) ? parsed.items : [])
++    .map((i) => {
++      const product = bySlug.get(i?.slug);
++      if (!product) return null;
++      const quantity = Math.max(1, Math.min(20, parseInt(i.quantity, 10) || 1));
++      return {
++        productId: product.id,
++        slug: product.slug,
++        name: product.name?.en || Object.values(product.name || {})[0] || product.slug,
++        price: product.price,
++        currency: product.currency,
++        quantity,
++      };
++    })
++    .filter(Boolean);
++
++  return { items, unmatchedText: typeof parsed.unmatchedText === "string" ? parsed.unmatchedText : "" };
++}
++
++/** Freeform Q&A fallback for when nothing else matched - grounded in the real menu so it can't invent prices or items. */
++async function aiFallbackReply(text, products, settings) {
++  const menuForPrompt = products.map((p) => ({
++    name: p.name?.en || Object.values(p.name || {})[0] || p.slug,
++    price: p.price,
++    currency: p.currency,
++  }));
++  const messages = [
++    {
++      role: "system",
++      content: `You are a friendly WhatsApp ordering assistant for a food business. Answer the customer's question briefly (2-3 sentences max, WhatsApp style, no markdown). If they seem to want to order food, tell them to reply "order" or use the menu button. Reply with ONLY this JSON: {"reply": "<text>"}.
++
++MENU:
++${JSON.stringify(menuForPrompt)}`,
++    },
++    { role: "user", content: text.slice(0, 1000) },
++  ];
++  try {
++    const raw = await callDashScopeChat(messages);
++    const cleaned = raw.trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim();
++    const parsed = JSON.parse(cleaned);
++    if (typeof parsed.reply === "string" && parsed.reply.trim()) return parsed.reply.trim();
++  } catch (err) {
++    console.error("aiFallbackReply failed:", err.message);
++  }
++  return `Sorry, I didn't quite catch that. Reply "${settings.order_button_label}" to place an order, or ask me anything else!`;
++}
++
++function formatCart(cart) {
++  return cart.map((i) => `${i.quantity}× ${i.name} - ${i.price * i.quantity} ${i.currency}`).join("\n");
++}
++
++function cartTotal(cart) {
++  return cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
++}
++
++async function sendWelcome(conversation, settings) {
++  await sendWhatsAppText(conversation.phone_number, settings.welcome_message);
++  await sendWhatsAppButtons(conversation.phone_number, "What would you like to do?", [
++    { id: BUTTON_ORDER, title: settings.order_button_label },
++    { id: BUTTON_LOCATION, title: settings.location_button_label },
++    { id: BUTTON_MENU, title: settings.menu_button_label },
++  ]);
++}
++
++async function notifyOwner(settings, conversation, order) {
++  if (!settings.owner_whatsapp_number) return;
++  const lines = order.items
++    .map((i) => `${i.quantity}× ${i.product_name} - ${i.unit_price * i.quantity} ${order.currency}`)
++    .join("\n");
++  const text =
++    `🔔 New order ${order.order_code}\n` +
++    `Name: ${order.customer_name}\n` +
++    `Table: ${order.table_no}\n\n` +
++    `${lines}\n\nTotal: ${order.total} ${order.currency}`;
++  try {
++    await sendWhatsAppText(settings.owner_whatsapp_number, text);
++  } catch (err) {
++    // Most likely cause: the owner hasn't messaged this WhatsApp number in
++    // the last 24h ("outside the customer service window"), and this isn't
++    // a pre-approved template message, so Meta refuses to deliver it. The
++    // order itself is already saved and visible on /admin either way - this
++    // notification is best-effort on top of that, not the source of truth.
++    console.error("notifyOwner failed (likely outside 24h window):", err.message);
++  }
++}
++
++/**
++ * Entry point called by the webhook route for every inbound customer
++ * message. Handles: the once-a-day welcome, admin-defined keyword
++ * automations, and the built-in Name -> Table -> Items -> Confirm order
++ * chain. Never throws for "normal" flow issues - errors are logged and the
++ * customer gets a graceful fallback reply instead of silence.
++ */
++export async function handleIncomingMessage({ phoneNumber, profileName, text, buttonId, waMessageId }) {
++  if (waMessageId) {
++    const isNew = await logMessage(null, "inbound", text, waMessageId);
++    if (!isNew) return; // already processed this exact message (webhook retry)
++  }
++
++  const settings = await getSettings();
++  let conversation = await getOrCreateConversation(phoneNumber, profileName);
++
++  // Backfill the conversation_id on the inbound log row now that we have it.
++  if (waMessageId) {
++    await supabase.from("wa_messages").update({ conversation_id: conversation.id }).eq("id", waMessageId);
++  }
++
++  const reply = async (body) => {
++    await sendWhatsAppText(phoneNumber, body);
++    await logMessage(conversation.id, "outbound", body);
++  };
++
++  // --- Once-a-day welcome ---------------------------------------------
++  if (conversation.last_greeted_date !== todayStr()) {
++    conversation = await updateConversation(conversation.id, { last_greeted_date: todayStr() });
++    await sendWelcome(conversation, settings);
++  }
++
++  const input = (buttonId || text || "").trim();
++  const normalized = input.toLowerCase();
++
++  // --- Global reset commands -------------------------------------------
++  if (["cancel", "restart", "reset"].includes(normalized)) {
++    conversation = await updateConversation(conversation.id, {
++      stage: "idle",
++      customer_name: null,
++      table_no: null,
++      cart: [],
++    });
++    await reply("No problem, I've cleared that. Say \"order\" any time you're ready to start again 🙂");
++    return;
++  }
++
++  // --- Start the order chain (button tap or typed "order") -------------
++  if (buttonId === BUTTON_ORDER || (conversation.stage === "idle" && normalized === "order")) {
++    conversation = await updateConversation(conversation.id, { stage: "ask_name" });
++    await reply("Great, let's get your order started! What name should I put on it?");
++    return;
++  }
++
++  // --- Keyword automations (checked outside the structured data-entry
++  // stages, so "location" mid-order isn't captured as someone's table
++  // number) ---------------------------------------------------------------
++  if (!["ask_name", "ask_table", "ask_items", "confirm"].includes(conversation.stage) || buttonId) {
++    if (buttonId === BUTTON_LOCATION || buttonId === BUTTON_MENU) {
++      const match = await findKeywordMatch(buttonId === BUTTON_LOCATION ? "location" : "menu price");
++      if (match) {
++        await reply(match.response);
++        return;
++      }
++    }
++    const match = await findKeywordMatch(input);
++    if (match) {
++      await reply(match.response);
++      return;
++    }
++  }
++
++  // --- Stage machine -----------------------------------------------------
++  switch (conversation.stage) {
++    case "ask_name": {
++      if (!input) {
++        await reply("Sorry, what name should I put on the order?");
++        return;
++      }
++      conversation = await updateConversation(conversation.id, { customer_name: input, stage: "ask_table" });
++      await reply(`Thanks, ${input}! What table number are you at?`);
++      return;
++    }
++
++    case "ask_table": {
++      if (!input) {
++        await reply("What table number are you at?");
++        return;
++      }
++      conversation = await updateConversation(conversation.id, { table_no: input, stage: "ask_items" });
++      await reply('What would you like to order? You can just type it naturally, e.g. "2 simit and a tea".');
++      return;
++    }
++
++    case "ask_items": {
++      const products = await getActiveMenu();
++      let matched;
++      try {
++        matched = await matchItemsWithAI(input, products);
++      } catch (err) {
++        console.error("matchItemsWithAI failed:", err.message);
++        await reply("Sorry, I had trouble reading that - could you list the items again?");
++        return;
++      }
++
++      const existingCart = Array.isArray(conversation.cart) ? conversation.cart : [];
++      const cart = [...existingCart];
++      for (const item of matched.items) {
++        const existing = cart.find((c) => c.slug === item.slug);
++        if (existing) existing.quantity += item.quantity;
++        else cart.push(item);
++      }
++
++      if (cart.length === 0) {
++        await reply("I couldn't match that to anything on the menu - could you try naming the items again?");
++        return;
++      }
++
++      conversation = await updateConversation(conversation.id, { cart, stage: "confirm" });
++
++      let summary = `Here's your order so far:\n\n${formatCart(cart)}\n\nTotal: ${cartTotal(cart)} ${cart[0].currency}`;
++      if (matched.unmatchedText) {
++        summary += `\n\n(I couldn't match "${matched.unmatchedText}" to anything on the menu, so I left it out.)`;
++      }
++      await sendWhatsAppText(phoneNumber, summary);
++      await logMessage(conversation.id, "outbound", summary);
++      await sendWhatsAppButtons(phoneNumber, "Ready to send this to the kitchen?", [
++        { id: BUTTON_CONFIRM, title: "✅ Confirm" },
++        { id: BUTTON_MODIFY, title: "✏️ Add / change" },
++      ]);
++      return;
++    }
++
++    case "confirm": {
++      if (buttonId === BUTTON_MODIFY) {
++        conversation = await updateConversation(conversation.id, { stage: "ask_items" });
++        await reply("Sure - what would you like to add or change?");
++        return;
++      }
++      if (buttonId === BUTTON_CONFIRM || normalized === "confirm") {
++        const cart = Array.isArray(conversation.cart) ? conversation.cart : [];
++        if (cart.length === 0) {
++          conversation = await updateConversation(conversation.id, { stage: "ask_items" });
++          await reply("Looks like the cart's empty - what would you like to order?");
++          return;
++        }
++
++        const { data: order, error: orderError } = await supabase
++          .from("orders")
++          .insert({
++            order_code: generateOrderCode(),
++            channel: "whatsapp",
++            customer_name: conversation.customer_name,
++            table_no: conversation.table_no,
++            lang: "en",
++            total: cartTotal(cart),
++            currency: cart[0].currency,
++            status: "on_queue",
++          })
++          .select()
++          .single();
++        if (orderError) {
++          console.error("WhatsApp order insert failed:", orderError.message);
++          await reply("Sorry, something went wrong placing that order - please try confirming again.");
++          return;
++        }
++
++        const { error: itemsError } = await supabase.from("order_items").insert(
++          cart.map((c) => ({
++            order_id: order.id,
++            product_id: c.productId,
++            product_name: c.name,
++            quantity: c.quantity,
++            unit_price: c.price,
++          }))
++        );
++        if (itemsError) console.error("WhatsApp order_items insert failed:", itemsError.message);
++
++        conversation = await updateConversation(conversation.id, {
++          stage: "idle",
++          customer_name: null,
++          table_no: null,
++          cart: [],
++        });
++
++        await reply(`🎉 Order placed! Your order code is ${order.order_code}. We'll bring it to your table shortly.`);
++        await notifyOwner(
++          settings,
++          { ...order, items: cart.map((c) => ({ product_name: c.name, quantity: c.quantity, unit_price: c.price })) },
++          conversation
++        );
++        return;
++      }
++      await reply('Tap "Confirm" to send this order, or "Add / change" to modify it.');
++      return;
++    }
++
++    default: {
++      // idle, nothing matched a keyword or a command - fall back to a
++      // grounded AI answer rather than going silent.
++      const products = await getActiveMenu();
++      const answer = await aiFallbackReply(input, products, settings);
++      await reply(answer);
++    }
++  }
++}
++
++/**
++ * Polls for conversations that have gone quiet mid-flow and sends the
++ * admin-configured follow-up nudge once. Intended to be run on an interval
++ * from index.js - this app is a long-running Node process (not serverless),
++ * so a simple setInterval is a reasonable stand-in for a real job queue here.
++ */
++export async function sendPendingFollowups() {
++  const settings = await getSettings();
++  const cutoff = new Date(Date.now() - settings.followup_delay_minutes * 60 * 1000).toISOString();
++
++  const { data: stale, error } = await supabase
++    .from("wa_conversations")
++    .select("id, phone_number")
++    .neq("stage", "idle")
++    .eq("followup_sent", false)
++    .lt("last_message_at", cutoff);
++  if (error) {
++    console.error("sendPendingFollowups query failed:", error.message);
++    return;
++  }
++
++  for (const convo of stale) {
++    try {
++      await sendWhatsAppText(convo.phone_number, settings.followup_message);
++      await supabase.from("wa_conversations").update({ followup_sent: true }).eq("id", convo.id);
++    } catch (err) {
++      console.error(`Follow-up to ${convo.phone_number} failed:`, err.message);
++    }
++  }
++}
+diff --git a/src/lib/waConnection.js b/src/lib/waConnection.js
+new file mode 100644
+index 0000000..ca61d51
+--- /dev/null
++++ b/src/lib/waConnection.js
+@@ -0,0 +1,35 @@
++import { supabase } from "../supabaseClient.js";
++
++let cache = null;
++let cacheExpiresAt = 0;
++const CACHE_TTL_MS = 30_000;
++
++/**
++ * Returns { wabaId, accessToken, appSecret, phoneNumberId, phoneNumberDisplay, verifyToken }.
++ * DB values (set via the admin "Connection" panel) win; falls back to
++ * environment variables for anyone who'd rather configure it that way.
++ * Cached briefly since every inbound message reads this at least once.
++ */
++export async function getWaConnection() {
++  if (cache && Date.now() < cacheExpiresAt) return cache;
++
++  const { data, error } = await supabase.from("wa_connection").select("*").eq("id", 1).maybeSingle();
++  if (error) console.error("getWaConnection query failed:", error.message);
++
++  cache = {
++    wabaId: data?.waba_id || process.env.WHATSAPP_WABA_ID || null,
++    accessToken: data?.access_token || process.env.WHATSAPP_TOKEN || null,
++    appSecret: data?.app_secret || process.env.WHATSAPP_APP_SECRET || null,
++    phoneNumberId: data?.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || null,
++    phoneNumberDisplay: data?.phone_number_display || null,
++    verifyToken: data?.verify_token || process.env.WHATSAPP_VERIFY_TOKEN || null,
++  };
++  cacheExpiresAt = Date.now() + CACHE_TTL_MS;
++  return cache;
++}
++
++/** Called right after the admin saves a new connection, so the next message doesn't wait out the TTL. */
++export function invalidateWaConnectionCache() {
++  cache = null;
++  cacheExpiresAt = 0;
++}
+diff --git a/src/lib/whatsapp.js b/src/lib/whatsapp.js
+new file mode 100644
+index 0000000..9559e51
+--- /dev/null
++++ b/src/lib/whatsapp.js
+@@ -0,0 +1,99 @@
++import { createHmac, timingSafeEqual } from "crypto";
++import "dotenv/config";
++import { getWaConnection } from "./waConnection.js";
++
++const API_VERSION = process.env.WHATSAPP_API_VERSION || "v21.0";
++
++async function graphUrl(path) {
++  const { phoneNumberId } = await getWaConnection();
++  if (!phoneNumberId) {
++    throw new Error("WhatsApp isn't connected yet - set it up in the admin WhatsApp Bot page.");
++  }
++  return `https://graph.facebook.com/${API_VERSION}/${phoneNumberId}/${path}`;
++}
++
++async function callGraph(body) {
++  const { accessToken } = await getWaConnection();
++  if (!accessToken) {
++    throw new Error("WhatsApp isn't connected yet - set it up in the admin WhatsApp Bot page.");
++  }
++
++  const res = await fetch(await graphUrl("messages"), {
++    method: "POST",
++    headers: {
++      "Content-Type": "application/json",
++      Authorization: `Bearer ${accessToken}`,
++    },
++    body: JSON.stringify({ messaging_product: "whatsapp", ...body }),
++  });
++
++  const payload = await res.json().catch(() => null);
++  if (!res.ok) {
++    // Common real-world failure here: error code 131047, which means the
++    // recipient hasn't messaged this number in the last 24h ("outside the
++    // customer service window") and this isn't a pre-approved template. See
++    // the note in waBot.js about the owner notification for why that matters.
++    const message = payload?.error?.message || `WhatsApp send failed (${res.status})`;
++    const err = new Error(message);
++    err.whatsappError = payload?.error;
++    throw err;
++  }
++  return payload;
++}
++
++/** Plain text message - the workhorse for almost every bot reply. */
++export function sendWhatsAppText(to, body) {
++  return callGraph({ to, type: "text", text: { body } });
++}
++
++/**
++ * Up to 3 quick-reply buttons under a text body. WhatsApp hard-caps this at
++ * 3 buttons and 20 characters per title, so callers should keep it short.
++ * @param {Array<{id: string, title: string}>} buttons
++ */
++export function sendWhatsAppButtons(to, bodyText, buttons) {
++  return callGraph({
++    to,
++    type: "interactive",
++    interactive: {
++      type: "button",
++      body: { text: bodyText },
++      action: {
++        buttons: buttons.slice(0, 3).map((b) => ({
++          type: "reply",
++          reply: { id: b.id, title: b.title.slice(0, 20) },
++        })),
++      },
++    },
++  });
++}
++
++/** Marks an inbound message as read (blue ticks) - purely cosmetic. */
++export function markWhatsAppMessageRead(messageId) {
++  return callGraph({ status: "read", message_id: messageId }).catch((err) => {
++    console.error("markWhatsAppMessageRead failed:", err.message);
++  });
++}
++
++/**
++ * Verifies Meta's X-Hub-Signature-256 header against the raw request body,
++ * using the Meta App Secret. Skips verification (with a console warning) if
++ * no App Secret is configured (DB connection panel or WHATSAPP_APP_SECRET),
++ * so setups mid-onboarding aren't blocked - but this should be set once
++ * you're live.
++ */
++export async function verifyWhatsAppSignature(rawBody, signatureHeader) {
++  const { appSecret } = await getWaConnection();
++  if (!appSecret) {
++    console.warn("WhatsApp App Secret not set - skipping webhook signature verification.");
++    return true;
++  }
++  if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
++
++  const expected = createHmac("sha256", appSecret).update(rawBody).digest("hex");
++  const provided = signatureHeader.slice("sha256=".length);
++
++  const a = Buffer.from(expected, "hex");
++  const b = Buffer.from(provided, "hex");
++  return a.length === b.length && timingSafeEqual(a, b);
++}
+diff --git a/src/routes/adminWhatsappConnection.js b/src/routes/adminWhatsappConnection.js
+new file mode 100644
+index 0000000..2489ce5
+--- /dev/null
++++ b/src/routes/adminWhatsappConnection.js
+@@ -0,0 +1,126 @@
++import { Router } from "express";
++import { supabase } from "../supabaseClient.js";
++import { invalidateWaConnectionCache } from "../lib/waConnection.js";
++
++const router = Router();
++const API_VERSION = process.env.WHATSAPP_API_VERSION || "v21.0";
++
++function maskToken(token) {
++  if (!token) return null;
++  return token.length <= 8 ? "••••••••" : `${token.slice(0, 4)}••••${token.slice(-4)}`;
++}
++
++/**
++ * GET /api/admin/whatsapp/connection
++ * Returns the current connection with the access token masked - the admin
++ * page never needs (or should display) the raw token after it's saved.
++ */
++router.get("/", async (req, res, next) => {
++  try {
++    const { data, error } = await supabase.from("wa_connection").select("*").eq("id", 1).single();
++    if (error) throw error;
++    res.json({
++      connection: {
++        wabaId: data.waba_id,
++        accessTokenMasked: maskToken(data.access_token),
++        hasAccessToken: Boolean(data.access_token),
++        appSecretSet: Boolean(data.app_secret),
++        phoneNumberId: data.phone_number_id,
++        phoneNumberDisplay: data.phone_number_display,
++        verifyToken: data.verify_token,
++        webhookUrl: `${req.protocol}://${req.get("host")}/api/whatsapp/webhook`,
++      },
++    });
++  } catch (err) {
++    next(err);
++  }
++});
++
++/**
++ * POST /api/admin/whatsapp/connection/lookup
++ * body: { wabaId, accessToken }
++ *
++ * Calls Graph API for the phone numbers under this WABA so the admin can
++ * pick one - doesn't save anything yet. Also returned as the response is
++ * whether it auto-resolves to a single number, so the client can skip the
++ * picker UI when there's nothing to choose between.
++ */
++router.post("/lookup", async (req, res, next) => {
++  try {
++    const { wabaId, accessToken } = req.body || {};
++    if (!wabaId?.trim() || !accessToken?.trim()) {
++      return res.status(400).json({ error: "wabaId and accessToken are required." });
++    }
++
++    const url = `https://graph.facebook.com/${API_VERSION}/${wabaId.trim()}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating`;
++    const graphRes = await fetch(url, { headers: { Authorization: `Bearer ${accessToken.trim()}` } });
++    const payload = await graphRes.json().catch(() => null);
++
++    if (!graphRes.ok) {
++      const message = payload?.error?.message || `Meta rejected that WABA ID / token (${graphRes.status}).`;
++      return res.status(400).json({ error: message });
++    }
++
++    const numbers = (payload?.data || []).map((n) => ({
++      id: n.id,
++      displayPhoneNumber: n.display_phone_number,
++      verifiedName: n.verified_name,
++      qualityRating: n.quality_rating,
++    }));
++
++    if (numbers.length === 0) {
++      return res.status(404).json({ error: "That WABA has no phone numbers registered yet." });
++    }
++
++    res.json({ numbers });
++  } catch (err) {
++    next(err);
++  }
++});
++
++/**
++ * POST /api/admin/whatsapp/connection
++ * body: { wabaId, accessToken, phoneNumberId, phoneNumberDisplay, appSecret? }
++ *
++ * Saves the chosen connection. Called after /lookup, once the admin has
++ * picked a number (or there was only one to pick).
++ */
++router.post("/", async (req, res, next) => {
++  try {
++    const { wabaId, accessToken, phoneNumberId, phoneNumberDisplay, appSecret } = req.body || {};
++    if (!wabaId?.trim() || !accessToken?.trim() || !phoneNumberId?.trim()) {
++      return res.status(400).json({ error: "wabaId, accessToken and phoneNumberId are required." });
++    }
++
++    const patch = {
++      waba_id: wabaId.trim(),
++      access_token: accessToken.trim(),
++      phone_number_id: phoneNumberId.trim(),
++      phone_number_display: phoneNumberDisplay || null,
++      updated_at: new Date().toISOString(),
++    };
++    if (appSecret !== undefined) patch.app_secret = appSecret?.trim() || null;
++
++    const { data, error } = await supabase.from("wa_connection").update(patch).eq("id", 1).select().single();
++    if (error) throw error;
++
++    invalidateWaConnectionCache();
++
++    res.json({
++      connection: {
++        wabaId: data.waba_id,
++        accessTokenMasked: maskToken(data.access_token),
++        hasAccessToken: Boolean(data.access_token),
++        appSecretSet: Boolean(data.app_secret),
++        phoneNumberId: data.phone_number_id,
++        phoneNumberDisplay: data.phone_number_display,
++        verifyToken: data.verify_token,
++        webhookUrl: `${req.protocol}://${req.get("host")}/api/whatsapp/webhook`,
++      },
++    });
++  } catch (err) {
++    next(err);
++  }
++});
++
++export default router;
+diff --git a/src/routes/adminWhatsappKeywords.js b/src/routes/adminWhatsappKeywords.js
+new file mode 100644
+index 0000000..4b30ff3
+--- /dev/null
++++ b/src/routes/adminWhatsappKeywords.js
+@@ -0,0 +1,104 @@
++import { Router } from "express";
++import { supabase } from "../supabaseClient.js";
++
++const router = Router();
++
++/** GET /api/admin/whatsapp/keywords */
++router.get("/", async (req, res, next) => {
++  try {
++    const { data, error } = await supabase
++      .from("wa_keywords")
++      .select("*")
++      .order("sort_order", { ascending: true });
++    if (error) throw error;
++    res.json({ keywords: data });
++  } catch (err) {
++    next(err);
++  }
++});
++
++/**
++ * POST /api/admin/whatsapp/keywords
++ * body: { keyword, response, matchType?: "contains"|"exact", active?: boolean }
++ */
++router.post("/", async (req, res, next) => {
++  try {
++    const { keyword, response, matchType = "contains", active = true } = req.body || {};
++    if (!keyword?.trim() || !response?.trim()) {
++      return res.status(400).json({ error: "keyword and response are required." });
++    }
++    if (!["contains", "exact"].includes(matchType)) {
++      return res.status(400).json({ error: 'matchType must be "contains" or "exact".' });
++    }
++
++    const { data: maxRow } = await supabase
++      .from("wa_keywords")
++      .select("sort_order")
++      .order("sort_order", { ascending: false })
++      .limit(1)
++      .maybeSingle();
++    const nextSortOrder = (maxRow?.sort_order ?? -1) + 1;
++
++    const { data, error } = await supabase
++      .from("wa_keywords")
++      .insert({
++        keyword: keyword.trim(),
++        response: response.trim(),
++        match_type: matchType,
++        active: Boolean(active),
++        sort_order: nextSortOrder,
++      })
++      .select()
++      .single();
++    if (error) throw error;
++    res.status(201).json({ keyword: data });
++  } catch (err) {
++    next(err);
++  }
++});
++
++/**
++ * PATCH /api/admin/whatsapp/keywords/:id
++ * body: any subset of { keyword, response, matchType, active, sortOrder }
++ */
++router.patch("/:id", async (req, res, next) => {
++  try {
++    const { keyword, response, matchType, active, sortOrder } = req.body || {};
++    const patch = {};
++    if (keyword !== undefined) patch.keyword = String(keyword).trim();
++    if (response !== undefined) patch.response = String(response).trim();
++    if (matchType !== undefined) {
++      if (!["contains", "exact"].includes(matchType)) {
++        return res.status(400).json({ error: 'matchType must be "contains" or "exact".' });
++      }
++      patch.match_type = matchType;
++    }
++    if (active !== undefined) patch.active = Boolean(active);
++    if (sortOrder !== undefined) patch.sort_order = parseInt(sortOrder, 10) || 0;
++
++    const { data, error } = await supabase
++      .from("wa_keywords")
++      .update(patch)
++      .eq("id", req.params.id)
++      .select()
++      .single();
++    if (error) throw error;
++    if (!data) return res.status(404).json({ error: "Keyword not found." });
++    res.json({ keyword: data });
++  } catch (err) {
++    next(err);
++  }
++});
++
++/** DELETE /api/admin/whatsapp/keywords/:id */
++router.delete("/:id", async (req, res, next) => {
++  try {
++    const { error } = await supabase.from("wa_keywords").delete().eq("id", req.params.id);
++    if (error) throw error;
++    res.status(204).end();
++  } catch (err) {
++    next(err);
++  }
++});
++
++export default router;
+diff --git a/src/routes/adminWhatsappSettings.js b/src/routes/adminWhatsappSettings.js
+new file mode 100644
+index 0000000..562d801
+--- /dev/null
++++ b/src/routes/adminWhatsappSettings.js
+@@ -0,0 +1,58 @@
++import { Router } from "express";
++import { supabase } from "../supabaseClient.js";
++
++const router = Router();
++
++const EDITABLE_FIELDS = [
++  "welcome_message",
++  "order_button_label",
++  "location_button_label",
++  "menu_button_label",
++  "followup_message",
++  "followup_delay_minutes",
++  "owner_whatsapp_number",
++];
++
++/** GET /api/admin/whatsapp/settings */
++router.get("/", async (req, res, next) => {
++  try {
++    const { data, error } = await supabase.from("wa_settings").select("*").eq("id", 1).single();
++    if (error) throw error;
++    res.json({ settings: data });
++  } catch (err) {
++    next(err);
++  }
++});
++
++/**
++ * PUT /api/admin/whatsapp/settings
++ * body: any subset of EDITABLE_FIELDS
++ */
++router.put("/", async (req, res, next) => {
++  try {
++    const patch = {};
++    for (const field of EDITABLE_FIELDS) {
++      if (req.body?.[field] !== undefined) patch[field] = req.body[field];
++    }
++    if (patch.followup_delay_minutes !== undefined) {
++      const n = parseInt(patch.followup_delay_minutes, 10);
++      if (!Number.isFinite(n) || n < 1) {
++        return res.status(400).json({ error: "followup_delay_minutes must be a positive integer." });
++      }
++      patch.followup_delay_minutes = n;
++    }
++
++    const { data, error } = await supabase
++      .from("wa_settings")
++      .update({ ...patch, updated_at: new Date().toISOString() })
++      .eq("id", 1)
++      .select()
++      .single();
++    if (error) throw error;
++    res.json({ settings: data });
++  } catch (err) {
++    next(err);
++  }
++});
++
++export default router;
+diff --git a/src/routes/orders.js b/src/routes/orders.js
+index aefd787..2400183 100644
+--- a/src/routes/orders.js
++++ b/src/routes/orders.js
+@@ -1,13 +1,9 @@
+ import { Router } from "express";
+-import { randomBytes } from "crypto";
+ import { supabase } from "../supabaseClient.js";
++import { generateOrderCode } from "../lib/orderCode.js";
+ 
+ const router = Router();
+ 
+-function generateOrderCode() {
+-  return `SIM-${randomBytes(3).toString("hex").toUpperCase()}`;
+-}
+-
+ /**
+  * POST /api/orders
+  * body: {
+diff --git a/src/routes/whatsappWebhook.js b/src/routes/whatsappWebhook.js
+new file mode 100644
+index 0000000..0c665b5
+--- /dev/null
++++ b/src/routes/whatsappWebhook.js
+@@ -0,0 +1,78 @@
++import { Router } from "express";
++import { verifyWhatsAppSignature } from "../lib/whatsapp.js";
++import { getWaConnection } from "../lib/waConnection.js";
++import { handleIncomingMessage } from "../lib/waBot.js";
++
++const router = Router();
++
++/**
++ * GET /api/whatsapp/webhook
++ * Meta's one-time handshake when you save the webhook URL in the App
++ * dashboard: it must echo back hub.challenge if hub.verify_token matches
++ * the token shown in the admin's Connection panel.
++ */
++router.get("/", async (req, res) => {
++  const mode = req.query["hub.mode"];
++  const token = req.query["hub.verify_token"];
++  const challenge = req.query["hub.challenge"];
++
++  const { verifyToken } = await getWaConnection();
++  if (mode === "subscribe" && verifyToken && token === verifyToken) {
++    return res.status(200).send(challenge);
++  }
++  return res.sendStatus(403);
++});
++
++/**
++ * POST /api/whatsapp/webhook
++ * Delivers every inbound message, status update, etc. We only care about
++ * inbound text/interactive-reply messages here; everything else (delivery
++ * receipts, etc.) is acknowledged and ignored.
++ *
++ * IMPORTANT: this must always respond 200 quickly, or Meta will retry
++ * (and keep retrying) the same payload - errors are caught and logged
++ * rather than surfaced as a failed response.
++ */
++router.post("/", async (req, res) => {
++  res.sendStatus(200); // ack immediately; process after responding
++
++  try {
++    if (!(await verifyWhatsAppSignature(req.rawBody, req.headers["x-hub-signature-256"]))) {
++      console.error("WhatsApp webhook: signature verification failed, dropping payload.");
++      return;
++    }
++
++    const entries = req.body?.entry || [];
++    for (const entry of entries) {
++      for (const change of entry.changes || []) {
++        const value = change.value || {};
++        for (const message of value.messages || []) {
++          const phoneNumber = message.from; // digits only, e.g. "77001234567"
++          const profileName = value.contacts?.[0]?.profile?.name;
++          const waMessageId = message.id;
++
++          let text = "";
++          let buttonId = null;
++          if (message.type === "text") {
++            text = message.text?.body || "";
++          } else if (message.type === "interactive") {
++            buttonId = message.interactive?.button_reply?.id || message.interactive?.list_reply?.id || null;
++            text = message.interactive?.button_reply?.title || message.interactive?.list_reply?.title || "";
++          } else if (message.type === "button") {
++            // Reply to a template's quick-reply button, if ever used.
++            buttonId = message.button?.payload || null;
++            text = message.button?.text || "";
++          } else {
++            continue; // images, audio, location, etc. - not handled yet
++          }
++
++          await handleIncomingMessage({ phoneNumber, profileName, text, buttonId, waMessageId });
++        }
++      }
++    }
++  } catch (err) {
++    console.error("WhatsApp webhook processing error:", err);
++  }
++});
++
++export default router;
+diff --git a/supabase/migrations/20260909_whatsapp_bot.sql b/supabase/migrations/20260909_whatsapp_bot.sql
+new file mode 100644
+index 0000000..0a8d676
+--- /dev/null
++++ b/supabase/migrations/20260909_whatsapp_bot.sql
+@@ -0,0 +1,76 @@
++-- WhatsApp bot: conversation state, message log, settings, and admin-editable
++-- keyword automations. Kept as its own set of tables so the bot never has to
++-- touch orders/products directly except at the very end (creating the order).
++
++create extension if not exists pgcrypto;
++
++-- One row per customer phone number ("wa_id" from Meta, digits only, e.g.
++-- "77001234567"). This is the whole state machine for the order-taking
++-- chain: stage tracks where the customer is in Name -> Table -> Items ->
++-- Confirm, and cart holds what's been matched so far.
++create table if not exists public.wa_conversations (
++  id uuid primary key default gen_random_uuid(),
++  phone_number text not null unique,
++  profile_name text,
++  stage text not null default 'idle'
++    check (stage in ('idle', 'ask_name', 'ask_table', 'ask_items', 'confirm')),
++  customer_name text,
++  table_no text,
++  cart jsonb not null default '[]'::jsonb,
++  last_message_at timestamptz not null default now(),
++  -- Date (server-local) the daily welcome message was last sent, so we only
++  -- greet once per day rather than on every message.
++  last_greeted_date date,
++  followup_sent boolean not null default false,
++  created_at timestamptz not null default now()
++);
++
++-- Inbound + outbound message log. Primary-keyed on WhatsApp's own message id
++-- so webhook retries (Meta resends on any non-2xx or timeout) can't process
++-- the same message twice - insert just fails silently on conflict.
++create table if not exists public.wa_messages (
++  id text primary key,
++  conversation_id uuid references public.wa_conversations(id) on delete cascade,
++  direction text not null check (direction in ('inbound', 'outbound')),
++  body text,
++  created_at timestamptz not null default now()
++);
++create index if not exists wa_messages_conversation_idx on public.wa_messages (conversation_id, created_at);
++
++-- Singleton settings row (id is always 1) - welcome message + buttons, and
++-- the follow-up nudge sent if a customer goes quiet mid-conversation.
++create table if not exists public.wa_settings (
++  id smallint primary key default 1 check (id = 1),
++  welcome_message text not null default
++    E'👋 Welcome! I''m here to help you order.\n\nWhat would you like to do?',
++  order_button_label text not null default '🛒 Place an order',
++  location_button_label text not null default '📍 Location',
++  menu_button_label text not null default '💰 Menu & prices',
++  followup_message text not null default
++    'Still there? Just reply whenever you''re ready to continue 🙂',
++  followup_delay_minutes int not null default 15,
++  owner_whatsapp_number text,
++  updated_at timestamptz not null default now()
++);
++insert into public.wa_settings (id) values (1) on conflict (id) do nothing;
++
++-- Admin-managed keyword -> auto-reply rules (the "keyword automation
++-- maker"). Checked on every inbound message that isn't a structured answer
++-- to the built-in order-taking chain.
++create table if not exists public.wa_keywords (
++  id uuid primary key default gen_random_uuid(),
++  keyword text not null,
++  match_type text not null default 'contains' check (match_type in ('contains', 'exact')),
++  response text not null,
++  active boolean not null default true,
++  sort_order int not null default 0,
++  created_at timestamptz not null default now()
++);
++
++insert into public.wa_keywords (keyword, match_type, response, sort_order)
++select * from (values
++  ('location', 'contains', 'Edit this reply in the admin panel with your real address and a map link 📍', 0),
++  ('hours', 'contains', 'Edit this reply in the admin panel with your real opening hours 🕒', 1),
++  ('price', 'contains', 'You can see our full menu and prices any time - just ask, or tap "Menu & prices" 💰', 2)
++) as seed(keyword, match_type, response, sort_order)
++where not exists (select 1 from public.wa_keywords);
+diff --git a/supabase/migrations/20260909_whatsapp_connection.sql b/supabase/migrations/20260909_whatsapp_connection.sql
+new file mode 100644
+index 0000000..c71ff0f
+--- /dev/null
++++ b/supabase/migrations/20260909_whatsapp_connection.sql
+@@ -0,0 +1,17 @@
++-- Lets the admin connect WhatsApp from the UI (paste WABA ID + access token,
++-- pick a phone number) instead of hand-editing environment variables.
++-- Singleton row, same pattern as wa_settings.
++
++create table if not exists public.wa_connection (
++  id smallint primary key default 1 check (id = 1),
++  waba_id text,
++  access_token text,
++  app_secret text,
++  phone_number_id text,
++  phone_number_display text,
++  -- Auto-generated so the admin has something to paste into Meta's webhook
++  -- config immediately, without needing to invent a value themselves.
++  verify_token text not null default encode(gen_random_bytes(16), 'hex'),
++  updated_at timestamptz not null default now()
++);
++insert into public.wa_connection (id) values (1) on conflict (id) do nothing;
+

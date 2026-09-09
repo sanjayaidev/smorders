@@ -178,9 +178,14 @@
               <span style={{ ...serif, color: C.ink, fontWeight: 700, fontSize: 18 }}>Simit Astana</span>
               <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.chip, color: C.accentDark }}>Admin</span>
             </div>
-            <button onClick={logout} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
-              <LogOut size={14} /> Log out
-            </button>
+            <div className="flex items-center gap-2">
+              <a href="/admin/whatsapp.html" className="text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+                WhatsApp Bot
+              </a>
+              <button onClick={logout} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+                <LogOut size={14} /> Log out
+              </button>
+            </div>
           </header>
 
           <nav className="px-5 pt-4 flex gap-2">
