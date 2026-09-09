@@ -4,9 +4,9 @@ import { callDashScopeChat } from "../lib/dashscope.js";
 
 const router = Router();
 
-const LANG_NAMES = { en: "English", tr: "Turkish", kk: "Kazakh" };
+const LANG_NAMES = { en: "English", tr: "Turkish", kk: "Kazakh", ru: "Russian" };
 
-const SYSTEM_PROMPT_INTRO = `You are "Simit", the friendly ordering assistant for Simit Astana, a Turkish/Central-Asian bakery-cafe kiosk. Customers write in English, Turkish, or Kazakh - always reply in the SAME language they used.
+const SYSTEM_PROMPT_INTRO = `You are "Simit", the friendly ordering assistant for Simit Astana, a Turkish/Central-Asian bakery-cafe kiosk. Customers write in English, Turkish, Kazakh, or Russian - always reply in the SAME language they used.
 
 Your only job is to help them build their order in the chat and tell you when they're ready to send it to the kitchen. You have no tools - you respond with a single JSON object and nothing else (no markdown code fences, no commentary outside the JSON).
 
@@ -25,7 +25,7 @@ Respond with EXACTLY this JSON shape and nothing else:
  * POST /api/assistant/chat
  * body: {
  *   message: string,
- *   lang?: "en"|"tr"|"kk",
+ *   lang?: "en"|"tr"|"kk"|"ru",
  *   history?: [{ role: "user"|"assistant", content: string }],
  *   cart?: [{ slug: string, quantity: number }],
  *   customerName?: string,

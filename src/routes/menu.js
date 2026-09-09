@@ -5,9 +5,9 @@ const router = Router();
 
 /**
  * GET /api/menu
- * GET /api/menu?lang=en|tr|kk
+ * GET /api/menu?lang=en|tr|kk|ru
  *
- * Without ?lang, returns categories/items with the raw {en,tr,kk} objects
+ * Without ?lang, returns categories/items with the raw {en,tr,kk,ru} objects
  * for name/description, so a client can switch languages instantly with
  * no refetch. With ?lang, flattens straight to strings in that language -
  * handy for a lightweight client, a chatbot, or quick curl testing.

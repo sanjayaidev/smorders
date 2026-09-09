@@ -56,7 +56,7 @@ router.get("/", async (req, res, next) => {
 /**
  * POST /api/admin/products
  * body: any subset of PRODUCT_FIELDS. category_id and slug are required.
- * name/description are jsonb i18n objects, e.g. { en: "...", tr: "...", kk: "..." }.
+ * name/description are jsonb i18n objects, e.g. { en: "...", tr: "...", kk: "...", ru: "..." }.
  */
 router.post("/", async (req, res, next) => {
   try {

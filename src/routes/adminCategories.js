@@ -15,7 +15,7 @@ function pickCategoryFields(body) {
 
 /**
  * POST /api/admin/categories
- * body: { slug, name: {en, tr, kk}, icon?, sort_order?, active? }
+ * body: { slug, name: {en, tr, kk, ru}, icon?, sort_order?, active? }
  */
 router.post("/", async (req, res, next) => {
   try {

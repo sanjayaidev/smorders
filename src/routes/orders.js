@@ -9,7 +9,7 @@ const router = Router();
  * body: {
  *   customerName: string,
  *   tableNo: string,
- *   lang?: "en" | "tr" | "kk"  (default "en"),
+ *   lang?: "en" | "tr" | "kk" | "ru"  (default "en"),
  *   customerNote?: string,
  *   items: [{ productId: string, quantity: number }]
  * }

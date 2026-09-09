@@ -67,7 +67,7 @@
       return new Date(iso).toLocaleDateString();
     }
 
-    function emptyI18n() { return { en: "", tr: "", kk: "" }; }
+    function emptyI18n() { return { en: "", tr: "", kk: "", ru: "" }; }
 
     /* ------------------------------- API helper ------------------------------- */
     function useApi(token, onUnauthorized) {
@@ -579,7 +579,7 @@
         icon: initial?.icon || "",
         sort_order: initial?.sort_order ?? 0,
         active: initial?.active ?? true,
-        name: initial?.name || emptyI18n(),
+        name: { ...emptyI18n(), ...(initial?.name || {}) },
       }));
       const [saving, setSaving] = useState(false);
       const [error, setError] = useState("");
@@ -624,6 +624,9 @@
           <Field label="Name (Kazakh)">
             <TextInput value={form.name.kk} onChange={(v) => setForm({ ...form, name: { ...form.name, kk: v } })} />
           </Field>
+          <Field label="Name (Russian)">
+            <TextInput value={form.name.ru} onChange={(v) => setForm({ ...form, name: { ...form.name, ru: v } })} />
+          </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <Field label="Sort order">
               <TextInput type="number" value={form.sort_order} onChange={(v) => setForm({ ...form, sort_order: Number(v) || 0 })} />
@@ -656,8 +659,8 @@
         coming_soon: initial?.coming_soon ?? false,
         sort_order: initial?.sort_order ?? 0,
         active: initial?.active ?? true,
-        name: initial?.name || emptyI18n(),
-        description: initial?.description || emptyI18n(),
+        name: { ...emptyI18n(), ...(initial?.name || {}) },
+        description: { ...emptyI18n(), ...(initial?.description || {}) },
       }));
       const [saving, setSaving] = useState(false);
       const [uploading, setUploading] = useState(false);
@@ -768,7 +771,7 @@
             </div>
           </div>
 
-          {["en", "tr", "kk"].map((lang) => (
+          {["en", "tr", "kk", "ru"].map((lang) => (
             <div key={lang} className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <Field label={`Name (${lang.toUpperCase()})`}>
                 <TextInput value={form.name[lang]} onChange={(v) => setForm({ ...form, name: { ...form.name, [lang]: v } })} />
