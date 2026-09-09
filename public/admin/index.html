@@ -530,6 +530,7 @@
               onClose={() => setCategoryModal(null)}
               onSaved={() => { setCategoryModal(null); load(); }}
               api={api}
+              token={token}
             />
           )}
           {productModal && (
@@ -573,16 +574,47 @@
     }
 
     /* ------------------------------- Category modal ------------------------------ */
-    function CategoryModal({ initial, onClose, onSaved, api }) {
+    function CategoryModal({ initial, onClose, onSaved, api, token }) {
       const [form, setForm] = useState(() => ({
         slug: initial?.slug || "",
         icon: initial?.icon || "",
+        image_url: initial?.image_url || "",
         sort_order: initial?.sort_order ?? 0,
         active: initial?.active ?? true,
         name: { ...emptyI18n(), ...(initial?.name || {}) },
       }));
       const [saving, setSaving] = useState(false);
+      const [uploading, setUploading] = useState(false);
       const [error, setError] = useState("");
+      const fileRef = useRef(null);
+
+      async function handleFile(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploading(true);
+        setError("");
+        try {
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          const res = await fetch("/api/upload/image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ image: base64, name: form.slug || "category" }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Upload failed.");
+          setForm((f) => ({ ...f, image_url: data.url }));
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setUploading(false);
+          if (fileRef.current) fileRef.current.value = "";
+        }
+      }
 
       async function save() {
         if (!form.slug.trim() || !form.name.en.trim()) {
@@ -611,9 +643,30 @@
             <Field label="Slug">
               <TextInput value={form.slug} onChange={(v) => setForm({ ...form, slug: v })} placeholder="breads" />
             </Field>
-            <Field label="Icon (emoji)">
+            <Field label="Icon (emoji fallback)">
               <TextInput value={form.icon} onChange={(v) => setForm({ ...form, icon: v })} placeholder="🥯" />
             </Field>
+          </div>
+          <div className="mb-3">
+            <span className="text-xs font-medium block mb-1.5" style={{ color: C.inkSoft }}>Photo</span>
+            <div className="flex items-center gap-3">
+              {form.image_url ? (
+                <img src={form.image_url} alt="" className="w-16 h-16 rounded-lg object-cover" style={{ border: `1px solid ${C.border}` }} />
+              ) : (
+                <div className="w-16 h-16 rounded-lg flex items-center justify-center text-2xl" style={{ background: C.chip }}>{form.icon || "🗂️"}</div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                <label className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ border: `1px solid ${C.border}`, color: C.ink }}>
+                  {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                  {uploading ? "Uploading…" : "Upload photo"}
+                  <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} className="hidden" disabled={uploading} />
+                </label>
+                {form.image_url && (
+                  <button onClick={() => setForm({ ...form, image_url: "" })} className="text-xs" style={{ color: C.inkSoft }}>Remove photo</button>
+                )}
+              </div>
+            </div>
+            <p className="text-xs mt-1.5" style={{ color: C.inkSoft }}>Shown on the customer menu. If left empty, the emoji icon above is used instead.</p>
           </div>
           <Field label="Name (English)">
             <TextInput value={form.name.en} onChange={(v) => setForm({ ...form, name: { ...form.name, en: v } })} />

@@ -35,7 +35,7 @@ router.get("/", async (req, res, next) => {
   try {
     const { data: categories, error: catError } = await supabase
       .from("categories")
-      .select("id, slug, icon, sort_order, active, name")
+      .select("id, slug, icon, image_url, sort_order, active, name")
       .order("sort_order");
     if (catError) throw catError;
 

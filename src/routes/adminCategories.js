@@ -3,7 +3,7 @@ import { supabase } from "../supabaseClient.js";
 
 const router = Router();
 
-const CATEGORY_FIELDS = ["slug", "icon", "sort_order", "active", "name"];
+const CATEGORY_FIELDS = ["slug", "icon", "image_url", "sort_order", "active", "name"];
 
 function pickCategoryFields(body) {
   const payload = {};
@@ -15,7 +15,7 @@ function pickCategoryFields(body) {
 
 /**
  * POST /api/admin/categories
- * body: { slug, name: {en, tr, kk, ru}, icon?, sort_order?, active? }
+ * body: { slug, name: {en, tr, kk, ru}, icon?, image_url?, sort_order?, active? }
  */
 router.post("/", async (req, res, next) => {
   try {

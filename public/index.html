@@ -52,7 +52,7 @@
       tr: { appName: "Simit Astana", tagline: "Bozkırın ve İpek Yolu'nun Lezzetleri", tabOrder: "Sipariş Formu", tabMenu: "Menü", yourDetails: "Bilgileriniz", name: "İsim", tableNo: "Masa No.", namePlaceholder: "örn. Aigerim", tablePlaceholder: "örn. 12", buildOrder: "Siparişinizi oluşturun", selectCategory: "Kategori", selectCategoryPlaceholder: "Bir kategori seçin", selectItem: "Ürün", selectItemPlaceholder: "Bir ürün seçin", view: "Görüntüle", add: "Ekle", added: "Siparişe eklendi", yourOrder: "Siparişiniz", emptyCart: "Henüz ürün yok — yukarıdan seçin.", subtotal: "Ara toplam", placeOrder: "Siparişi ver", placingOrder: "Mutfağa gönderiliyor…", orderPlacedTitle: "Sipariş mutfağa gönderildi", orderId: "Sipariş No.", thankYou: "Teşekkürler — kısa süre içinde masanıza getireceğiz.", newOrder: "Yeni sipariş başlat", menuOrderNow: "Sipariş ver", menuAdd: "Ekle", menuView: "Detaylar", quickOrderTitle: "Bu ürünü sipariş et", quickOrderDesc: "Sadece bu, doğrudan mutfağa gönderilir.", quantity: "Adet", confirmOrder: "Siparişi onayla", cancel: "Vazgeç", chatTitle: "Simit", chatSubtitle: "Sipariş asistanınız", chatPlaceholder: "Siparişinizi yazın…", chatGreeting: "Merhaba! Ben Simit 🥯 — ne istediğinizi söyleyin.", chatFallback: "Bir yemek anlayamadım. Menüden bir şey söyleyin.", chatNeedName: "Siparişe hangi ismi yazayım?", chatNeedTable: "Hangi masadasınız?", chatAdded: (list) => `${list} siparişinize eklendi.`, chatConfirmed: (id) => `Sipariş alındı! Sipariş numaranız: ${id}.`, chatMissingCart: "Önce bir yemek söyleyin, hazır olduğunuzda \"sipariş ver\" deyin.", chatError: "Üzgünüm, şu anda anlamakta zorlanıyorum — lütfen biraz sonra tekrar deneyin.", chatSend: "Gönder", languageLabel: "Dil", table: "Masa", loadingMenu: "Menü yükleniyor…", menuLoadError: "Menü yüklenemedi. Sunucu çalışıyor mu?", retry: "Tekrar dene", comingSoon: "Yakında", orderFailed: "Sipariş verilemedi. Lütfen tekrar deneyin.", statusLabel: "Sipariş durumu", statusOnQueue: "Sırada", statusPreparing: "Hazırlanıyor", statusDelivered: "Teslim edildi", statusCancelled: "İptal edildi", cancelReason: "Sebep" },
     };
 
-    const LANGS = [{ id: "kk", label: "🇰🇿 KZ" }, { id: "ru", label: "🇷🇺 RU" }, { id: "tr", label: "🇹🇷 TR" }, { id: "en", label: "🇬🇧 EN" }];
+    const LANGS = [{ id: "kk", flagCode: "kz", label: "KZ" }, { id: "ru", flagCode: "ru", label: "RU" }, { id: "tr", flagCode: "tr", label: "TR" }, { id: "en", flagCode: "gb", label: "EN" }];
     const CURRENCY = "₸";
 
     // Menu item/category names & descriptions come from the DB as {en, tr, kk, ru}.
@@ -60,6 +60,40 @@
     // "ru" key - fall back to English rather than rendering blank text.
     function pickLang(field, lang) {
       return field?.[lang] || field?.en || "";
+    }
+
+    // Flag emojis (🇰🇿 🇷🇺 etc.) render as plain letters on systems without a
+    // color-emoji font (notably Windows, and some Android/Linux setups) - so
+    // we use real flag images instead. If the image fails to load for any
+    // reason, it just disappears and the text label next to it still shows.
+    function FlagIcon({ code, size = 16 }) {
+      const [failed, setFailed] = useState(false);
+      if (!code || failed) return null;
+      return (
+        <img
+          src={`https://flagcdn.com/w40/${code}.png`}
+          srcSet={`https://flagcdn.com/w80/${code}.png 2x`}
+          alt=""
+          onError={() => setFailed(true)}
+          style={{ width: size, height: Math.round(size * 0.75), objectFit: "cover", borderRadius: 2, display: "inline-block", verticalAlign: "middle" }}
+        />
+      );
+    }
+
+    // Shows a product's real photo (image_url) when there is one; falls back
+    // to its emoji if there's no image, or if the image link is broken.
+    function ItemIcon({ src, emoji, size = 48, rounded = "rounded-xl", emojiSize = "text-3xl" }) {
+      const [failed, setFailed] = useState(false);
+      const showImage = !!src && !failed;
+      return (
+        <div className={`${rounded} overflow-hidden flex items-center justify-center shrink-0`} style={{ width: size, height: size, background: C.chip }}>
+          {showImage ? (
+            <img src={src} alt="" className="w-full h-full object-cover" onError={() => setFailed(true)} />
+          ) : (
+            <span className={emojiSize}>{emoji}</span>
+          )}
+        </div>
+      );
     }
 
     function Stepper({ qty, onChange, min = 0 }) {
@@ -388,8 +422,8 @@
               <div className="flex items-center gap-1 rounded-full p-1 shrink-0" style={{ background: C.chip }}>
                 <Globe size={14} style={{ color: C.inkSoft, marginLeft: 6 }} />
                 {LANGS.map((l) => (
-                  <button key={l.id} onClick={() => setLang(l.id)} className="text-xs font-semibold px-2.5 py-1.5 rounded-full transition" style={{ background: lang === l.id ? C.accent : "transparent", color: lang === l.id ? C.bg : C.inkSoft, border: lang === l.id ? `2px solid ${C.ink}` : "none" }}>
-                    {l.label}
+                  <button key={l.id} onClick={() => setLang(l.id)} className="text-xs font-semibold px-2.5 py-1.5 rounded-full transition flex items-center gap-1.5" style={{ background: lang === l.id ? C.accent : "transparent", color: lang === l.id ? C.bg : C.inkSoft, border: lang === l.id ? `2px solid ${C.ink}` : "none" }}>
+                    <FlagIcon code={l.flagCode} /> {l.label}
                   </button>
                 ))}
               </div>
@@ -466,7 +500,7 @@
                           <div key={c.id}>
                             <div className="flex items-center justify-between gap-3 py-1">
                               <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-xl">{c.item.emoji}</span>
+                                <ItemIcon src={c.item.image_url} emoji={c.item.emoji} size={32} rounded="rounded-lg" emojiSize="text-xl" />
                                 <div className="min-w-0">
                                   <p className="text-sm font-medium truncate" style={{ color: C.ink }}>{pickLang(c.item.name, lang)}</p>
                                   <p className="text-xs" style={{ color: C.inkSoft }}>{CURRENCY}{c.item.price} × {c.qty}</p>
@@ -506,7 +540,9 @@
           {detailItem && (
             <Modal onClose={() => setDetailItem(null)}>
               <div className="text-center">
-                <div className="text-6xl mb-3">{detailItem.emoji}</div>
+                <div className="mb-3 flex justify-center">
+                  <ItemIcon src={detailItem.image_url} emoji={detailItem.emoji} size={96} rounded="rounded-2xl" emojiSize="text-6xl" />
+                </div>
                 <h3 className="text-2xl mb-1" style={{ ...serif, color: C.ink, fontWeight: 600 }}>{pickLang(detailItem.name, lang)}</h3>
                 <p className="text-lg mb-3" style={{ color: C.brick, ...serif, fontWeight: 600 }}>{CURRENCY}{detailItem.price}{detailItem.weight_note ? ` / ${detailItem.weight_note}` : ""}</p>
                 <p className="text-sm leading-relaxed mb-5" style={{ color: C.inkSoft }}>{pickLang(detailItem.description, lang)}</p>
@@ -527,7 +563,7 @@
               ) : (
                 <>
                   <div className="flex items-center gap-3 mb-4">
-                    <span className="text-4xl">{quickOrderItem.emoji}</span>
+                    <ItemIcon src={quickOrderItem.image_url} emoji={quickOrderItem.emoji} size={56} rounded="rounded-xl" emojiSize="text-4xl" />
                     <div>
                       <h3 className="text-lg" style={{ ...serif, color: C.ink, fontWeight: 600 }}>{t.quickOrderTitle}</h3>
                       <p className="text-xs" style={{ color: C.inkSoft }}>{t.quickOrderDesc}</p>
@@ -752,23 +788,22 @@
         <div className="fade-up">
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-4 mb-2">
             {menu.map((cat) => (
-              <button key={cat.id} onClick={() => goToCategory(cat.id)} className={`shrink-0 text-xs font-semibold px-3.5 py-2 rounded-full whitespace-nowrap transition`} style={{ background: activeCat === cat.id ? C.ink : C.chip, color: activeCat === cat.id ? C.bg : C.ink }}>
-                {cat.icon} {pickLang(cat.name, lang)}
+              <button key={cat.id} onClick={() => goToCategory(cat.id)} className={`shrink-0 flex items-center gap-1.5 text-xs font-semibold pl-1.5 pr-3.5 py-1.5 rounded-full whitespace-nowrap transition`} style={{ background: activeCat === cat.id ? C.ink : C.chip, color: activeCat === cat.id ? C.bg : C.ink }}>
+                <ItemIcon src={cat.image_url} emoji={cat.icon} size={22} rounded="rounded-full" emojiSize="text-sm" />
+                {pickLang(cat.name, lang)}
               </button>
             ))}
           </div>
           {menu.map((cat) => (
             <section key={cat.id} id={`cat-${cat.id}`} className="mb-8 scroll-mt-32">
               <h2 className="text-xl mb-3 flex items-center gap-2" style={{ ...serif, color: C.ink, fontWeight: 600 }}>
-                <span>{cat.icon}</span> {pickLang(cat.name, lang)}
+                <ItemIcon src={cat.image_url} emoji={cat.icon} size={28} rounded="rounded-lg" emojiSize="text-xl" /> {pickLang(cat.name, lang)}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {cat.items.map((item) => (
                   <div key={item.id} className="rounded-2xl p-4 flex flex-col" style={{ background: C.surface, border: `1px solid ${C.border}`, opacity: item.coming_soon ? 0.55 : 1 }}>
                     <div className="flex items-start gap-3 mb-2">
-                      <div className="text-3xl w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: C.chip }}>
-                        {item.emoji}
-                      </div>
+                      <ItemIcon src={item.image_url} emoji={item.emoji} size={48} rounded="rounded-xl" emojiSize="text-3xl" />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold" style={{ color: C.ink }}>{pickLang(item.name, lang)}</p>
                         {item.coming_soon ? (
