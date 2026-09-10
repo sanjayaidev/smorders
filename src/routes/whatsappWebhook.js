@@ -34,15 +34,27 @@ router.get("/", async (req, res) => {
  * rather than surfaced as a failed response.
  */
 router.post("/", async (req, res) => {
+  // Log webhook reception for testing/debugging
+  console.log("[WhatsApp Webhook] Received webhook at:", new Date().toISOString());
+  console.log("[WhatsApp Webhook] Raw body:", JSON.stringify(req.body, null, 2));
+  console.log("[WhatsApp Webhook] Headers:", JSON.stringify({
+    'x-hub-signature-256': req.headers['x-hub-signature-256'] ? '[present]' : '[missing]',
+    'content-type': req.headers['content-type']
+  }, null, 2));
+
   res.sendStatus(200); // ack immediately; process after responding
 
   try {
     if (!(await verifyWhatsAppSignature(req.rawBody, req.headers["x-hub-signature-256"]))) {
-      console.error("WhatsApp webhook: signature verification failed, dropping payload.");
+      console.error("[WhatsApp Webhook] Signature verification failed, dropping payload.");
       return;
     }
 
+    console.log("[WhatsApp Webhook] Signature verified successfully");
+
     const entries = req.body?.entry || [];
+    console.log(`[WhatsApp Webhook] Processing ${entries.length} entry/entries`);
+
     for (const entry of entries) {
       for (const change of entry.changes || []) {
         const value = change.value || {};
@@ -63,15 +75,18 @@ router.post("/", async (req, res) => {
             buttonId = message.button?.payload || null;
             text = message.button?.text || "";
           } else {
+            console.log("[WhatsApp Webhook] Skipping non-text message type:", message.type, JSON.stringify(message));
             continue; // images, audio, location, etc. - not handled yet
           }
 
+          console.log(`[WhatsApp Webhook] Processing message from phoneNumber=${phoneNumber}, profileName=${profileName}, text="${text}", buttonId=${buttonId}`);
           await handleIncomingMessage({ phoneNumber, profileName, text, buttonId, waMessageId });
         }
       }
     }
+    console.log("[WhatsApp Webhook] Successfully processed all entries");
   } catch (err) {
-    console.error("WhatsApp webhook processing error:", err);
+    console.error("[WhatsApp Webhook] Processing error:", err);
   }
 });
 
