@@ -46,24 +46,152 @@
     const serif = { fontFamily: "'Fraunces', 'Georgia', serif" };
     const CURRENCY = "₸";
     const TOKEN_KEY = "simit_admin_token";
+    const LANG_KEY = "simit_admin_lang";
 
     const STATUS_META = {
-      on_queue: { label: "On queue", color: "#B9821F", bg: "#FBF0DA", icon: Clock },
-      preparing: { label: "Preparing", color: "#5C6B35", bg: "#E9EEDB", icon: ChefHat },
-      delivered: { label: "Delivered", color: "#2F6B4F", bg: "#DFF0E7", icon: CheckCircle2 },
-      cancelled: { label: "Cancelled", color: "#AE3B26", bg: "#F6E2DC", icon: XCircle },
+      on_queue: { color: "#B9821F", bg: "#FBF0DA", icon: Clock },
+      preparing: { color: "#5C6B35", bg: "#E9EEDB", icon: ChefHat },
+      delivered: { color: "#2F6B4F", bg: "#DFF0E7", icon: CheckCircle2 },
+      cancelled: { color: "#AE3B26", bg: "#F6E2DC", icon: XCircle },
+    };
+    const STATUS_LABEL_KEY = {
+      on_queue: "statusOnQueue", preparing: "statusPreparing",
+      delivered: "statusDelivered", cancelled: "statusCancelled",
     };
     const STATUS_ORDER = ["on_queue", "preparing", "delivered", "cancelled"];
     const NEXT_STATUS = { on_queue: "preparing", preparing: "delivered" };
-    const NEXT_LABEL = { on_queue: "Start preparing", preparing: "Mark delivered" };
+    const NEXT_LABEL_KEY = { on_queue: "startPreparing", preparing: "markDelivered" };
 
-    function timeAgo(iso) {
+    const LANGS = [
+      { id: "kk", flagCode: "kz", label: "KZ" },
+      { id: "ru", flagCode: "ru", label: "RU" },
+      { id: "tr", flagCode: "tr", label: "TR" },
+      { id: "en", flagCode: "gb", label: "EN" },
+    ];
+
+    /* ---------------------------- Admin translations --------------------------- */
+    const T = {
+      en: {
+        loginTitle: "Simit Astana Admin", loginSubtitle: "Enter the staff password to continue.",
+        passwordPlaceholder: "Password", checking: "Checking…", signIn: "Sign in",
+        incorrectPassword: "Incorrect password.", adminBadge: "Admin", whatsappBot: "WhatsApp Bot",
+        logout: "Log out", ordersTab: "Orders", productsTab: "Products", language: "Language",
+        allFilter: "All", refresh: "Refresh", noOrdersYet: "No orders here yet.", table: "Table",
+        item: "item", items: "items", reason: "Reason", note: "Note", cancel: "Cancel",
+        cancelOrderTitle: (code) => `Cancel ${code}?`,
+        cancelOrderDesc: "Give the customer a short reason - they'll see this on their order status.",
+        reasonPlaceholder: "e.g. Out of manti dough for today", neverMind: "Never mind",
+        cancelOrder: "Cancel order", startPreparing: "Start preparing", markDelivered: "Mark delivered",
+        statusOnQueue: "On queue", statusPreparing: "Preparing", statusDelivered: "Delivered", statusCancelled: "Cancelled",
+        categories: "Categories", addCategory: "Add category", noCategoriesYet: "No categories yet.", inactive: "inactive",
+        products: "Products", addProduct: "Add product", noProductsYet: "No products yet.", comingSoonBadge: "coming soon",
+        editCategory: "Edit category", addCategoryTitle: "Add category", slug: "Slug", iconEmoji: "Icon (emoji fallback)",
+        photo: "Photo", uploadPhoto: "Upload photo", uploadingPhoto: "Uploading…", removePhoto: "Remove photo",
+        photoHint: "Shown on the customer menu. If left empty, the emoji icon above is used instead.",
+        nameEnglish: "Name (English)", nameTurkish: "Name (Turkish)", nameKazakh: "Name (Kazakh)", nameRussian: "Name (Russian)",
+        sortOrder: "Sort order", active: "Active", save: "Save", saving: "Saving…",
+        slugNameRequired: "Slug and English name are required.",
+        deleteCategoryConfirm: (name) => `Delete category "${name}"? This fails if products still use it.`,
+        deleteProductConfirm: (name) => `Delete "${name}"? This can't be undone.`,
+        editProduct: "Edit product", addProductTitle: "Add product", category: "Category", price: "Price",
+        currencyLabel: "Currency", weightNote: "Weight / note", fallbackEmojiPlaceholder: "Fallback emoji, e.g. 🥯",
+        nameLang: (l) => `Name (${l})`, descriptionLang: (l) => `Description (${l})`, comingSoonField: "Coming soon",
+        categorySlugNameRequired: "Category, slug and English name are required.", loading: "Loading…",
+        secondsAgo: (s) => `${s}s ago`, minutesAgo: (m) => `${m}m ago`, hoursAgo: (h) => `${h}h ago`,
+      },
+      ru: {
+        loginTitle: "Админ-панель Simit Astana", loginSubtitle: "Введите пароль сотрудника, чтобы продолжить.",
+        passwordPlaceholder: "Пароль", checking: "Проверка…", signIn: "Войти",
+        incorrectPassword: "Неверный пароль.", adminBadge: "Админ", whatsappBot: "WhatsApp-бот",
+        logout: "Выйти", ordersTab: "Заказы", productsTab: "Товары", language: "Язык",
+        allFilter: "Все", refresh: "Обновить", noOrdersYet: "Заказов пока нет.", table: "Стол",
+        item: "товар", items: "товара(ов)", reason: "Причина", note: "Примечание", cancel: "Отмена",
+        cancelOrderTitle: (code) => `Отменить заказ ${code}?`,
+        cancelOrderDesc: "Укажите короткую причину для клиента — она отобразится в статусе заказа.",
+        reasonPlaceholder: "напр. Закончилось тесто для манты", neverMind: "Не сейчас",
+        cancelOrder: "Отменить заказ", startPreparing: "Начать готовить", markDelivered: "Отметить доставленным",
+        statusOnQueue: "В очереди", statusPreparing: "Готовится", statusDelivered: "Доставлен", statusCancelled: "Отменён",
+        categories: "Категории", addCategory: "Добавить категорию", noCategoriesYet: "Категорий пока нет.", inactive: "неактивно",
+        products: "Товары", addProduct: "Добавить товар", noProductsYet: "Товаров пока нет.", comingSoonBadge: "скоро",
+        editCategory: "Изменить категорию", addCategoryTitle: "Добавить категорию", slug: "Слаг", iconEmoji: "Иконка (запасной эмодзи)",
+        photo: "Фото", uploadPhoto: "Загрузить фото", uploadingPhoto: "Загрузка…", removePhoto: "Удалить фото",
+        photoHint: "Отображается в меню для клиентов. Если не заполнено, используется эмодзи-иконка выше.",
+        nameEnglish: "Название (английский)", nameTurkish: "Название (турецкий)", nameKazakh: "Название (казахский)", nameRussian: "Название (русский)",
+        sortOrder: "Порядок сортировки", active: "Активно", save: "Сохранить", saving: "Сохранение…",
+        slugNameRequired: "Слаг и название на английском обязательны.",
+        deleteCategoryConfirm: (name) => `Удалить категорию «${name}»? Не получится, если товары ещё используют её.`,
+        deleteProductConfirm: (name) => `Удалить «${name}»? Это действие необратимо.`,
+        editProduct: "Изменить товар", addProductTitle: "Добавить товар", category: "Категория", price: "Цена",
+        currencyLabel: "Валюта", weightNote: "Вес / примечание", fallbackEmojiPlaceholder: "Запасной эмодзи, напр. 🥯",
+        nameLang: (l) => `Название (${l})`, descriptionLang: (l) => `Описание (${l})`, comingSoonField: "Скоро в продаже",
+        categorySlugNameRequired: "Категория, слаг и название на английском обязательны.", loading: "Загрузка…",
+        secondsAgo: (s) => `${s} с назад`, minutesAgo: (m) => `${m} мин назад`, hoursAgo: (h) => `${h} ч назад`,
+      },
+      kk: {
+        loginTitle: "Simit Astana әкімшілік панелі", loginSubtitle: "Жалғастыру үшін қызметкер құпия сөзін енгізіңіз.",
+        passwordPlaceholder: "Құпия сөз", checking: "Тексерілуде…", signIn: "Кіру",
+        incorrectPassword: "Құпия сөз қате.", adminBadge: "Админ", whatsappBot: "WhatsApp боты",
+        logout: "Шығу", ordersTab: "Тапсырыстар", productsTab: "Тағамдар", language: "Тіл",
+        allFilter: "Барлығы", refresh: "Жаңарту", noOrdersYet: "Әзірге тапсырыс жоқ.", table: "Үстел",
+        item: "тағам", items: "тағам(дар)", reason: "Себебі", note: "Ескертпе", cancel: "Бас тарту",
+        cancelOrderTitle: (code) => `${code} тапсырысын бас тартасыз ба?`,
+        cancelOrderDesc: "Клиентке қысқаша себеп жазыңыз — ол тапсырыс мәртебесінде көрінеді.",
+        reasonPlaceholder: "мыс. Манты қамыры таусылды", neverMind: "Қайтару",
+        cancelOrder: "Тапсырысты бас тарту", startPreparing: "Дайындауды бастау", markDelivered: "Жеткізілді деп белгілеу",
+        statusOnQueue: "Кезекте", statusPreparing: "Дайындалуда", statusDelivered: "Жеткізілді", statusCancelled: "Бас тартылды",
+        categories: "Санаттар", addCategory: "Санат қосу", noCategoriesYet: "Әзірге санат жоқ.", inactive: "белсенді емес",
+        products: "Тағамдар", addProduct: "Тағам қосу", noProductsYet: "Әзірге тағам жоқ.", comingSoonBadge: "жақында",
+        editCategory: "Санатты өңдеу", addCategoryTitle: "Санат қосу", slug: "Слаг", iconEmoji: "Иконка (қосалқы эмодзи)",
+        photo: "Сурет", uploadPhoto: "Сурет жүктеу", uploadingPhoto: "Жүктелуде…", removePhoto: "Суретті өшіру",
+        photoHint: "Клиенттің мәзірінде көрсетіледі. Бос қалдырса, жоғарыдағы эмодзи-иконка қолданылады.",
+        nameEnglish: "Атауы (ағылшынша)", nameTurkish: "Атауы (түрікше)", nameKazakh: "Атауы (қазақша)", nameRussian: "Атауы (орысша)",
+        sortOrder: "Сұрыптау реті", active: "Белсенді", save: "Сақтау", saving: "Сақталуда…",
+        slugNameRequired: "Слаг және ағылшынша атауы міндетті.",
+        deleteCategoryConfirm: (name) => `«${name}» санатын өшіресіз бе? Егер тағамдар оны қолданса, өшірілмейді.`,
+        deleteProductConfirm: (name) => `«${name}» өшіресіз бе? Бұл әрекетті болдырмауға болмайды.`,
+        editProduct: "Тағамды өңдеу", addProductTitle: "Тағам қосу", category: "Санат", price: "Бағасы",
+        currencyLabel: "Валюта", weightNote: "Салмағы / ескертпе", fallbackEmojiPlaceholder: "Қосалқы эмодзи, мыс. 🥯",
+        nameLang: (l) => `Атауы (${l})`, descriptionLang: (l) => `Сипаттамасы (${l})`, comingSoonField: "Жақында",
+        categorySlugNameRequired: "Санат, слаг және ағылшынша атауы міндетті.", loading: "Жүктелуде…",
+        secondsAgo: (s) => `${s} сек бұрын`, minutesAgo: (m) => `${m} мин бұрын`, hoursAgo: (h) => `${h} сағ бұрын`,
+      },
+      tr: {
+        loginTitle: "Simit Astana Yönetici Paneli", loginSubtitle: "Devam etmek için personel şifresini girin.",
+        passwordPlaceholder: "Şifre", checking: "Kontrol ediliyor…", signIn: "Giriş yap",
+        incorrectPassword: "Şifre yanlış.", adminBadge: "Yönetici", whatsappBot: "WhatsApp Botu",
+        logout: "Çıkış yap", ordersTab: "Siparişler", productsTab: "Ürünler", language: "Dil",
+        allFilter: "Tümü", refresh: "Yenile", noOrdersYet: "Henüz sipariş yok.", table: "Masa",
+        item: "ürün", items: "ürün", reason: "Sebep", note: "Not", cancel: "İptal",
+        cancelOrderTitle: (code) => `${code} iptal edilsin mi?`,
+        cancelOrderDesc: "Müşteriye kısa bir sebep belirtin - sipariş durumunda görünecek.",
+        reasonPlaceholder: "örn. Bugün için mantı hamuru bitti", neverMind: "Vazgeç",
+        cancelOrder: "Siparişi iptal et", startPreparing: "Hazırlamaya başla", markDelivered: "Teslim edildi olarak işaretle",
+        statusOnQueue: "Sırada", statusPreparing: "Hazırlanıyor", statusDelivered: "Teslim edildi", statusCancelled: "İptal edildi",
+        categories: "Kategoriler", addCategory: "Kategori ekle", noCategoriesYet: "Henüz kategori yok.", inactive: "pasif",
+        products: "Ürünler", addProduct: "Ürün ekle", noProductsYet: "Henüz ürün yok.", comingSoonBadge: "yakında",
+        editCategory: "Kategoriyi düzenle", addCategoryTitle: "Kategori ekle", slug: "Slug", iconEmoji: "Simge (yedek emoji)",
+        photo: "Fotoğraf", uploadPhoto: "Fotoğraf yükle", uploadingPhoto: "Yükleniyor…", removePhoto: "Fotoğrafı kaldır",
+        photoHint: "Müşteri menüsünde gösterilir. Boş bırakılırsa yukarıdaki emoji simge kullanılır.",
+        nameEnglish: "İsim (İngilizce)", nameTurkish: "İsim (Türkçe)", nameKazakh: "İsim (Kazakça)", nameRussian: "İsim (Rusça)",
+        sortOrder: "Sıralama", active: "Aktif", save: "Kaydet", saving: "Kaydediliyor…",
+        slugNameRequired: "Slug ve İngilizce isim gereklidir.",
+        deleteCategoryConfirm: (name) => `"${name}" kategorisi silinsin mi? Ürünler hâlâ kullanıyorsa başarısız olur.`,
+        deleteProductConfirm: (name) => `"${name}" silinsin mi? Bu geri alınamaz.`,
+        editProduct: "Ürünü düzenle", addProductTitle: "Ürün ekle", category: "Kategori", price: "Fiyat",
+        currencyLabel: "Para birimi", weightNote: "Ağırlık / not", fallbackEmojiPlaceholder: "Yedek emoji, örn. 🥯",
+        nameLang: (l) => `İsim (${l})`, descriptionLang: (l) => `Açıklama (${l})`, comingSoonField: "Yakında",
+        categorySlugNameRequired: "Kategori, slug ve İngilizce isim gereklidir.", loading: "Yükleniyor…",
+        secondsAgo: (s) => `${s} sn önce`, minutesAgo: (m) => `${m} dk önce`, hoursAgo: (h) => `${h} sa önce`,
+      },
+    };
+
+    function timeAgo(iso, t) {
       const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
-      if (s < 60) return `${s}s ago`;
+      if (s < 60) return t.secondsAgo(s);
       const m = Math.floor(s / 60);
-      if (m < 60) return `${m}m ago`;
+      if (m < 60) return t.minutesAgo(m);
       const h = Math.floor(m / 60);
-      if (h < 24) return `${h}h ago`;
+      if (h < 24) return t.hoursAgo(h);
       return new Date(iso).toLocaleDateString();
     }
 
@@ -94,8 +222,31 @@
       );
     }
 
+    /* --------------------------- Language switcher ------------------------------ */
+    function LanguageSwitcher({ lang, setLang, compact }) {
+      return (
+        <div className="flex items-center gap-1 flex-wrap" role="group" aria-label="Language">
+          {LANGS.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              onClick={() => setLang(l.id)}
+              className={`text-xs font-semibold rounded-full transition ${compact ? "px-2 py-1" : "px-2.5 py-1.5"}`}
+              style={{
+                background: lang === l.id ? C.ink : "transparent",
+                color: lang === l.id ? C.bg : C.inkSoft,
+                border: `1px solid ${lang === l.id ? C.ink : C.border}`,
+              }}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
     /* -------------------------------- Login ----------------------------------- */
-    function LoginScreen({ onLoggedIn }) {
+    function LoginScreen({ onLoggedIn, lang, setLang, t }) {
       const [password, setPassword] = useState("");
       const [error, setError] = useState("");
       const [loading, setLoading] = useState(false);
@@ -111,7 +262,7 @@
             body: JSON.stringify({ password }),
           });
           const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "Incorrect password.");
+          if (!res.ok) throw new Error(data.error || t.incorrectPassword);
           onLoggedIn(data.token);
         } catch (err) {
           setError(err.message);
@@ -122,18 +273,21 @@
 
       return (
         <div className="min-h-screen flex items-center justify-center px-4" style={{ background: C.bg, ...sans }}>
+          <div className="w-full max-w-sm mb-3 flex justify-center">
+            <LanguageSwitcher lang={lang} setLang={setLang} />
+          </div>
           <form onSubmit={submit} className="w-full max-w-sm rounded-2xl p-8" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
             <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: C.chip }}>
               <Lock size={20} style={{ color: C.accentDark }} />
             </div>
-            <h1 className="text-xl mb-1" style={{ ...serif, color: C.ink, fontWeight: 600 }}>Simit Astana Admin</h1>
-            <p className="text-sm mb-5" style={{ color: C.inkSoft }}>Enter the staff password to continue.</p>
+            <h1 className="text-xl mb-1" style={{ ...serif, color: C.ink, fontWeight: 600 }}>{t.loginTitle}</h1>
+            <p className="text-sm mb-5" style={{ color: C.inkSoft }}>{t.loginSubtitle}</p>
             <input
               type="password"
               autoFocus
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
+              placeholder={t.passwordPlaceholder}
               className="w-full rounded-lg px-3 py-2.5 text-sm mb-3 outline-none"
               style={{ border: `1px solid ${C.border}`, color: C.ink }}
             />
@@ -144,7 +298,7 @@
               className="w-full rounded-lg py-2.5 text-sm font-semibold disabled:opacity-50"
               style={{ background: C.ink, color: C.bg }}
             >
-              {loading ? "Checking…" : "Sign in"}
+              {loading ? t.checking : t.signIn}
             </button>
           </form>
         </div>
@@ -155,10 +309,16 @@
     function App() {
       const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY));
       const [tab, setTab] = useState("orders");
+      const [lang, setLang] = useState(() => localStorage.getItem(LANG_KEY) || "kk");
+      const t = T[lang];
 
-      function handleLoggedIn(t) {
-        sessionStorage.setItem(TOKEN_KEY, t);
-        setToken(t);
+      useEffect(() => {
+        localStorage.setItem(LANG_KEY, lang);
+      }, [lang]);
+
+      function handleLoggedIn(token) {
+        sessionStorage.setItem(TOKEN_KEY, token);
+        setToken(token);
       }
       const handleUnauthorized = useCallback(() => {
         sessionStorage.removeItem(TOKEN_KEY);
@@ -169,34 +329,35 @@
         setToken(null);
       }
 
-      if (!token) return <LoginScreen onLoggedIn={handleLoggedIn} />;
+      if (!token) return <LoginScreen onLoggedIn={handleLoggedIn} lang={lang} setLang={setLang} t={t} />;
 
       return (
         <div className="min-h-screen" style={{ background: C.bg, ...sans }}>
-          <header className="sticky top-0 z-20 px-5 py-3 flex items-center justify-between" style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+          <header className="sticky top-0 z-20 px-5 py-3 flex items-center justify-between flex-wrap gap-2" style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
             <div className="flex items-center gap-2">
               <span style={{ ...serif, color: C.ink, fontWeight: 700, fontSize: 18 }}>Simit Astana</span>
-              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.chip, color: C.accentDark }}>Admin</span>
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.chip, color: C.accentDark }}>{t.adminBadge}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <LanguageSwitcher lang={lang} setLang={setLang} compact />
               <a href="/admin/whatsapp.html" className="text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
-                WhatsApp Bot
+                {t.whatsappBot}
               </a>
               <button onClick={logout} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
-                <LogOut size={14} /> Log out
+                <LogOut size={14} /> {t.logout}
               </button>
             </div>
           </header>
 
           <nav className="px-5 pt-4 flex gap-2">
-            <TabButton active={tab === "orders"} onClick={() => setTab("orders")} icon={ClipboardList}>Orders</TabButton>
-            <TabButton active={tab === "products"} onClick={() => setTab("products")} icon={Package}>Products</TabButton>
+            <TabButton active={tab === "orders"} onClick={() => setTab("orders")} icon={ClipboardList}>{t.ordersTab}</TabButton>
+            <TabButton active={tab === "products"} onClick={() => setTab("products")} icon={Package}>{t.productsTab}</TabButton>
           </nav>
 
           <main className="p-5 max-w-6xl mx-auto">
             {tab === "orders"
-              ? <OrdersTab token={token} onUnauthorized={handleUnauthorized} />
-              : <ProductsTab token={token} onUnauthorized={handleUnauthorized} />}
+              ? <OrdersTab token={token} onUnauthorized={handleUnauthorized} t={t} lang={lang} />
+              : <ProductsTab token={token} onUnauthorized={handleUnauthorized} t={t} lang={lang} />}
           </main>
         </div>
       );
@@ -221,7 +382,7 @@
     }
 
     /* -------------------------------- Orders tab -------------------------------- */
-    function OrdersTab({ token, onUnauthorized }) {
+    function OrdersTab({ token, onUnauthorized, t, lang }) {
       const api = useApi(token, onUnauthorized);
       const [orders, setOrders] = useState([]);
       const [filter, setFilter] = useState("");
@@ -271,27 +432,27 @@
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div className="flex gap-2 flex-wrap">
-              <FilterPill active={filter === ""} onClick={() => setFilter("")}>All</FilterPill>
+              <FilterPill active={filter === ""} onClick={() => setFilter("")}>{t.allFilter}</FilterPill>
               {STATUS_ORDER.map((s) => (
                 <FilterPill key={s} active={filter === s} onClick={() => setFilter(s)} dotColor={STATUS_META[s].color}>
-                  {STATUS_META[s].label}
+                  {t[STATUS_LABEL_KEY[s]]}
                 </FilterPill>
               ))}
             </div>
             <button onClick={load} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg self-start sm:self-auto" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
-              <RefreshCw size={14} /> Refresh
+              <RefreshCw size={14} /> {t.refresh}
             </button>
           </div>
 
           {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
           {loading ? (
-            <LoadingBlock />
+            <LoadingBlock t={t} />
           ) : orders.length === 0 ? (
-            <EmptyBlock text="No orders here yet." />
+            <EmptyBlock text={t.noOrdersYet} />
           ) : (
             <div className="grid gap-3">
               {orders.map((order) => (
-                <OrderCard key={order.id} order={order} onAdvance={updateStatus} onCancel={() => setCancelTarget(order)} />
+                <OrderCard key={order.id} order={order} onAdvance={updateStatus} onCancel={() => setCancelTarget(order)} t={t} />
               ))}
             </div>
           )}
@@ -304,6 +465,7 @@
                 updateStatus(cancelTarget, "cancelled", reason);
                 setCancelTarget(null);
               }}
+              t={t}
             />
           )}
         </div>
@@ -327,17 +489,17 @@
       );
     }
 
-    function StatusBadge({ status }) {
+    function StatusBadge({ status, t }) {
       const meta = STATUS_META[status] || STATUS_META.on_queue;
       const Icon = meta.icon;
       return (
         <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: meta.bg, color: meta.color }}>
-          <Icon size={12} /> {meta.label}
+          <Icon size={12} /> {t[STATUS_LABEL_KEY[status] || STATUS_LABEL_KEY.on_queue]}
         </span>
       );
     }
 
-    function OrderCard({ order, onAdvance, onCancel }) {
+    function OrderCard({ order, onAdvance, onCancel, t }) {
       const [open, setOpen] = useState(false);
       const nextStatus = NEXT_STATUS[order.status];
 
@@ -347,24 +509,24 @@
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-mono text-sm font-semibold" style={{ color: C.ink }}>{order.order_code}</span>
-                <StatusBadge status={order.status} />
+                <StatusBadge status={order.status} t={t} />
               </div>
-              <p className="text-sm" style={{ color: C.ink }}>{order.customer_name} · Table {order.table_no}</p>
-              <p className="text-xs mt-0.5" style={{ color: C.inkSoft }}>{timeAgo(order.created_at)} · {order.items.length} item{order.items.length === 1 ? "" : "s"}</p>
+              <p className="text-sm" style={{ color: C.ink }}>{order.customer_name} · {t.table} {order.table_no}</p>
+              <p className="text-xs mt-0.5" style={{ color: C.inkSoft }}>{timeAgo(order.created_at, t)} · {order.items.length} {order.items.length === 1 ? t.item : t.items}</p>
               {order.status === "cancelled" && order.cancellation_reason && (
-                <p className="text-xs mt-1 italic" style={{ color: C.brick }}>Reason: {order.cancellation_reason}</p>
+                <p className="text-xs mt-1 italic" style={{ color: C.brick }}>{t.reason}: {order.cancellation_reason}</p>
               )}
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto">
               <span className="text-sm font-semibold" style={{ color: C.ink }}>{CURRENCY}{order.total}</span>
               {nextStatus && (
                 <button onClick={() => onAdvance(order, nextStatus)} className="text-xs font-semibold px-3 py-2 rounded-lg" style={{ background: C.olive, color: "#fff" }}>
-                  {NEXT_LABEL[order.status]}
+                  {t[NEXT_LABEL_KEY[order.status]]}
                 </button>
               )}
               {(order.status === "on_queue" || order.status === "preparing") && (
                 <button onClick={onCancel} className="text-xs font-semibold px-3 py-2 rounded-lg" style={{ border: `1px solid ${C.brick}`, color: C.brick }}>
-                  Cancel
+                  {t.cancel}
                 </button>
               )}
               <button onClick={() => setOpen((v) => !v)} className="p-2 rounded-lg" style={{ color: C.inkSoft }}>
@@ -382,7 +544,7 @@
                 </div>
               ))}
               {order.customer_note && (
-                <p className="mt-2 text-xs italic" style={{ color: C.inkSoft }}>Note: {order.customer_note}</p>
+                <p className="mt-2 text-xs italic" style={{ color: C.inkSoft }}>{t.note}: {order.customer_note}</p>
               )}
             </div>
           )}
@@ -390,29 +552,29 @@
       );
     }
 
-    function CancelModal({ order, onClose, onConfirm }) {
+    function CancelModal({ order, onClose, onConfirm, t }) {
       const [reason, setReason] = useState("");
       return (
-        <Modal onClose={onClose} title={`Cancel ${order.order_code}?`}>
-          <p className="text-sm mb-3" style={{ color: C.inkSoft }}>Give the customer a short reason - they'll see this on their order status.</p>
+        <Modal onClose={onClose} title={t.cancelOrderTitle(order.order_code)}>
+          <p className="text-sm mb-3" style={{ color: C.inkSoft }}>{t.cancelOrderDesc}</p>
           <textarea
             autoFocus
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="e.g. Out of manti dough for today"
+            placeholder={t.reasonPlaceholder}
             rows={3}
             className="w-full rounded-lg px-3 py-2 text-sm outline-none mb-4"
             style={{ border: `1px solid ${C.border}`, color: C.ink }}
           />
           <div className="flex justify-end gap-2">
-            <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>Never mind</button>
+            <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>{t.neverMind}</button>
             <button
               disabled={!reason.trim()}
               onClick={() => onConfirm(reason.trim())}
               className="text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
               style={{ background: C.brick, color: "#fff" }}
             >
-              Cancel order
+              {t.cancelOrder}
             </button>
           </div>
         </Modal>
@@ -420,7 +582,7 @@
     }
 
     /* ------------------------------- Products tab -------------------------------- */
-    function ProductsTab({ token, onUnauthorized }) {
+    function ProductsTab({ token, onUnauthorized, t, lang }) {
       const api = useApi(token, onUnauthorized);
       const [categories, setCategories] = useState([]);
       const [products, setProducts] = useState([]);
@@ -447,7 +609,7 @@
       useEffect(() => { load(); }, [load]);
 
       async function deleteProduct(product) {
-        if (!confirm(`Delete "${product.name?.en || product.slug}"? This can't be undone.`)) return;
+        if (!confirm(t.deleteProductConfirm(product.name?.en || product.slug))) return;
         try {
           await api(`/api/admin/products/${product.id}`, { method: "DELETE" });
           load();
@@ -457,7 +619,7 @@
       }
 
       async function deleteCategory(category) {
-        if (!confirm(`Delete category "${category.name?.en || category.slug}"? This fails if products still use it.`)) return;
+        if (!confirm(t.deleteCategoryConfirm(category.name?.en || category.slug))) return;
         try {
           await api(`/api/admin/categories/${category.id}`, { method: "DELETE" });
           load();
@@ -466,7 +628,7 @@
         }
       }
 
-      if (loading) return <LoadingBlock />;
+      if (loading) return <LoadingBlock t={t} />;
 
       return (
         <div>
@@ -474,9 +636,9 @@
 
           <section className="mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 style={{ ...serif, color: C.ink, fontWeight: 600, fontSize: 17 }}>Categories</h2>
+              <h2 style={{ ...serif, color: C.ink, fontWeight: 600, fontSize: 17 }}>{t.categories}</h2>
               <button onClick={() => setCategoryModal({ mode: "add" })} className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: C.ink, color: C.bg }}>
-                <Plus size={14} /> Add category
+                <Plus size={14} /> {t.addCategory}
               </button>
             </div>
             <div className="grid gap-2">
@@ -484,9 +646,9 @@
                 <div key={cat.id} className="flex items-center justify-between gap-3 rounded-lg px-4 py-2.5" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
                   <div className="flex items-center gap-2 min-w-0 flex-wrap">
                     <span className="flex-shrink-0">{cat.icon || "📁"}</span>
-                    <span className="text-sm font-medium truncate" style={{ color: C.ink }}>{cat.name?.en || cat.slug}</span>
+                    <span className="text-sm font-medium truncate" style={{ color: C.ink }}>{cat.name?.[lang] || cat.name?.en || cat.slug}</span>
                     <span className="text-xs flex-shrink-0" style={{ color: C.inkSoft }}>({cat.slug})</span>
-                    {!cat.active && <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: C.chip, color: C.inkSoft }}>inactive</span>}
+                    {!cat.active && <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: C.chip, color: C.inkSoft }}>{t.inactive}</span>}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <IconBtn onClick={() => setCategoryModal({ mode: "edit", category: cat })}><Pencil size={14} /></IconBtn>
@@ -494,20 +656,20 @@
                   </div>
                 </div>
               ))}
-              {categories.length === 0 && <EmptyBlock text="No categories yet." />}
+              {categories.length === 0 && <EmptyBlock text={t.noCategoriesYet} />}
             </div>
           </section>
 
           <section>
             <div className="flex items-center justify-between mb-3">
-              <h2 style={{ ...serif, color: C.ink, fontWeight: 600, fontSize: 17 }}>Products</h2>
+              <h2 style={{ ...serif, color: C.ink, fontWeight: 600, fontSize: 17 }}>{t.products}</h2>
               <button
                 onClick={() => setProductModal({ mode: "add" })}
                 disabled={categories.length === 0}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg disabled:opacity-50"
                 style={{ background: C.ink, color: C.bg }}
               >
-                <Plus size={14} /> Add product
+                <Plus size={14} /> {t.addProduct}
               </button>
             </div>
             <div className="grid gap-2">
@@ -518,9 +680,11 @@
                   category={categories.find((c) => c.id === p.category_id)}
                   onEdit={() => setProductModal({ mode: "edit", product: p })}
                   onDelete={() => deleteProduct(p)}
+                  t={t}
+                  lang={lang}
                 />
               ))}
-              {products.length === 0 && <EmptyBlock text="No products yet." />}
+              {products.length === 0 && <EmptyBlock text={t.noProductsYet} />}
             </div>
           </section>
 
@@ -531,6 +695,7 @@
               onSaved={() => { setCategoryModal(null); load(); }}
               api={api}
               token={token}
+              t={t}
             />
           )}
           {productModal && (
@@ -541,13 +706,15 @@
               onSaved={() => { setProductModal(null); load(); }}
               api={api}
               token={token}
+              t={t}
+              lang={lang}
             />
           )}
         </div>
       );
     }
 
-    function ProductRow({ product, category, onEdit, onDelete }) {
+    function ProductRow({ product, category, onEdit, onDelete, t, lang }) {
       return (
         <div className="flex items-center justify-between rounded-lg px-4 py-2.5 gap-3" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
           <div className="flex items-center gap-3 min-w-0">
@@ -558,11 +725,11 @@
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium truncate" style={{ color: C.ink }}>{product.name?.en || product.slug}</span>
-                {!product.active && <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: C.chip, color: C.inkSoft }}>inactive</span>}
-                {product.coming_soon && <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: "#FBF0DA", color: C.accentDark }}>coming soon</span>}
+                <span className="text-sm font-medium truncate" style={{ color: C.ink }}>{product.name?.[lang] || product.name?.en || product.slug}</span>
+                {!product.active && <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: C.chip, color: C.inkSoft }}>{t.inactive}</span>}
+                {product.coming_soon && <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: "#FBF0DA", color: C.accentDark }}>{t.comingSoonBadge}</span>}
               </div>
-              <p className="text-xs truncate" style={{ color: C.inkSoft }}>{category?.name?.en || "—"} · {CURRENCY}{product.price} {product.weight_note ? `· ${product.weight_note}` : ""}</p>
+              <p className="text-xs truncate" style={{ color: C.inkSoft }}>{category?.name?.[lang] || category?.name?.en || "—"} · {CURRENCY}{product.price} {product.weight_note ? `· ${product.weight_note}` : ""}</p>
             </div>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
@@ -574,7 +741,7 @@
     }
 
     /* ------------------------------- Category modal ------------------------------ */
-    function CategoryModal({ initial, onClose, onSaved, api, token }) {
+    function CategoryModal({ initial, onClose, onSaved, api, token, t }) {
       const [form, setForm] = useState(() => ({
         slug: initial?.slug || "",
         icon: initial?.icon || "",
@@ -618,7 +785,7 @@
 
       async function save() {
         if (!form.slug.trim() || !form.name.en.trim()) {
-          setError("Slug and English name are required.");
+          setError(t.slugNameRequired);
           return;
         }
         setSaving(true);
@@ -638,17 +805,17 @@
       }
 
       return (
-        <Modal onClose={onClose} title={initial ? "Edit category" : "Add category"}>
+        <Modal onClose={onClose} title={initial ? t.editCategory : t.addCategoryTitle}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-            <Field label="Slug">
+            <Field label={t.slug}>
               <TextInput value={form.slug} onChange={(v) => setForm({ ...form, slug: v })} placeholder="breads" />
             </Field>
-            <Field label="Icon (emoji fallback)">
+            <Field label={t.iconEmoji}>
               <TextInput value={form.icon} onChange={(v) => setForm({ ...form, icon: v })} placeholder="🥯" />
             </Field>
           </div>
           <div className="mb-3">
-            <span className="text-xs font-medium block mb-1.5" style={{ color: C.inkSoft }}>Photo</span>
+            <span className="text-xs font-medium block mb-1.5" style={{ color: C.inkSoft }}>{t.photo}</span>
             <div className="flex items-center gap-3">
               {form.image_url ? (
                 <img src={form.image_url} alt="" className="w-16 h-16 rounded-lg object-cover" style={{ border: `1px solid ${C.border}` }} />
@@ -658,41 +825,41 @@
               <div className="flex flex-col gap-1.5">
                 <label className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ border: `1px solid ${C.border}`, color: C.ink }}>
                   {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                  {uploading ? "Uploading…" : "Upload photo"}
+                  {uploading ? t.uploadingPhoto : t.uploadPhoto}
                   <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} className="hidden" disabled={uploading} />
                 </label>
                 {form.image_url && (
-                  <button onClick={() => setForm({ ...form, image_url: "" })} className="text-xs" style={{ color: C.inkSoft }}>Remove photo</button>
+                  <button onClick={() => setForm({ ...form, image_url: "" })} className="text-xs" style={{ color: C.inkSoft }}>{t.removePhoto}</button>
                 )}
               </div>
             </div>
-            <p className="text-xs mt-1.5" style={{ color: C.inkSoft }}>Shown on the customer menu. If left empty, the emoji icon above is used instead.</p>
+            <p className="text-xs mt-1.5" style={{ color: C.inkSoft }}>{t.photoHint}</p>
           </div>
-          <Field label="Name (English)">
+          <Field label={t.nameEnglish}>
             <TextInput value={form.name.en} onChange={(v) => setForm({ ...form, name: { ...form.name, en: v } })} />
           </Field>
-          <Field label="Name (Turkish)">
+          <Field label={t.nameTurkish}>
             <TextInput value={form.name.tr} onChange={(v) => setForm({ ...form, name: { ...form.name, tr: v } })} />
           </Field>
-          <Field label="Name (Kazakh)">
+          <Field label={t.nameKazakh}>
             <TextInput value={form.name.kk} onChange={(v) => setForm({ ...form, name: { ...form.name, kk: v } })} />
           </Field>
-          <Field label="Name (Russian)">
+          <Field label={t.nameRussian}>
             <TextInput value={form.name.ru} onChange={(v) => setForm({ ...form, name: { ...form.name, ru: v } })} />
           </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-            <Field label="Sort order">
+            <Field label={t.sortOrder}>
               <TextInput type="number" value={form.sort_order} onChange={(v) => setForm({ ...form, sort_order: Number(v) || 0 })} />
             </Field>
-            <Field label="Active">
+            <Field label={t.active}>
               <Toggle checked={form.active} onChange={(v) => setForm({ ...form, active: v })} />
             </Field>
           </div>
           {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
           <div className="flex justify-end gap-2">
-            <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>Cancel</button>
+            <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>{t.cancel}</button>
             <button onClick={save} disabled={saving} className="text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50" style={{ background: C.ink, color: C.bg }}>
-              {saving ? "Saving…" : "Save"}
+              {saving ? t.saving : t.save}
             </button>
           </div>
         </Modal>
@@ -700,7 +867,7 @@
     }
 
     /* -------------------------------- Product modal ------------------------------- */
-    function ProductModal({ initial, categories, onClose, onSaved, api, token }) {
+    function ProductModal({ initial, categories, onClose, onSaved, api, token, t, lang }) {
       const [form, setForm] = useState(() => ({
         category_id: initial?.category_id || categories[0]?.id || "",
         slug: initial?.slug || "",
@@ -750,7 +917,7 @@
 
       async function save() {
         if (!form.category_id || !form.slug.trim() || !form.name.en.trim()) {
-          setError("Category, slug and English name are required.");
+          setError(t.categorySlugNameRequired);
           return;
         }
         setSaving(true);
@@ -771,37 +938,37 @@
       }
 
       return (
-        <Modal onClose={onClose} title={initial ? "Edit product" : "Add product"} wide>
+        <Modal onClose={onClose} title={initial ? t.editProduct : t.addProductTitle} wide>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-            <Field label="Category">
+            <Field label={t.category}>
               <select
                 value={form.category_id}
                 onChange={(e) => setForm({ ...form, category_id: e.target.value })}
                 className="w-full rounded-lg px-3 py-2 text-sm outline-none"
                 style={{ border: `1px solid ${C.border}`, color: C.ink }}
               >
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name?.en || c.slug}</option>)}
+                {categories.map((c) => <option key={c.id} value={c.id}>{c.name?.[lang] || c.name?.en || c.slug}</option>)}
               </select>
             </Field>
-            <Field label="Slug">
+            <Field label={t.slug}>
               <TextInput value={form.slug} onChange={(v) => setForm({ ...form, slug: v })} placeholder="simit-classic" />
             </Field>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-            <Field label="Price">
+            <Field label={t.price}>
               <TextInput type="number" value={form.price} onChange={(v) => setForm({ ...form, price: v })} />
             </Field>
-            <Field label="Currency">
+            <Field label={t.currencyLabel}>
               <TextInput value={form.currency} onChange={(v) => setForm({ ...form, currency: v })} />
             </Field>
-            <Field label="Weight / note">
+            <Field label={t.weightNote}>
               <TextInput value={form.weight_note} onChange={(v) => setForm({ ...form, weight_note: v })} placeholder="180g" />
             </Field>
           </div>
 
           <div className="mb-3">
-            <span className="text-xs font-medium block mb-1.5" style={{ color: C.inkSoft }}>Photo</span>
+            <span className="text-xs font-medium block mb-1.5" style={{ color: C.inkSoft }}>{t.photo}</span>
             <div className="flex items-center gap-3">
               {form.image_url ? (
                 <img src={form.image_url} alt="" className="w-16 h-16 rounded-lg object-cover" style={{ border: `1px solid ${C.border}` }} />
@@ -811,47 +978,47 @@
               <div className="flex flex-col gap-1.5">
                 <label className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg cursor-pointer" style={{ border: `1px solid ${C.border}`, color: C.ink }}>
                   {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                  {uploading ? "Uploading…" : "Upload photo"}
+                  {uploading ? t.uploadingPhoto : t.uploadPhoto}
                   <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} className="hidden" disabled={uploading} />
                 </label>
                 {form.image_url && (
-                  <button onClick={() => setForm({ ...form, image_url: "" })} className="text-xs" style={{ color: C.inkSoft }}>Remove photo</button>
+                  <button onClick={() => setForm({ ...form, image_url: "" })} className="text-xs" style={{ color: C.inkSoft }}>{t.removePhoto}</button>
                 )}
               </div>
               <div className="flex-1">
-                <TextInput value={form.emoji} onChange={(v) => setForm({ ...form, emoji: v })} placeholder="Fallback emoji, e.g. 🥯" />
+                <TextInput value={form.emoji} onChange={(v) => setForm({ ...form, emoji: v })} placeholder={t.fallbackEmojiPlaceholder} />
               </div>
             </div>
           </div>
 
-          {["en", "tr", "kk", "ru"].map((lang) => (
-            <div key={lang} className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-              <Field label={`Name (${lang.toUpperCase()})`}>
-                <TextInput value={form.name[lang]} onChange={(v) => setForm({ ...form, name: { ...form.name, [lang]: v } })} />
+          {["en", "tr", "kk", "ru"].map((fieldLang) => (
+            <div key={fieldLang} className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <Field label={t.nameLang(fieldLang.toUpperCase())}>
+                <TextInput value={form.name[fieldLang]} onChange={(v) => setForm({ ...form, name: { ...form.name, [fieldLang]: v } })} />
               </Field>
-              <Field label={`Description (${lang.toUpperCase()})`}>
-                <TextInput value={form.description[lang]} onChange={(v) => setForm({ ...form, description: { ...form.description, [lang]: v } })} />
+              <Field label={t.descriptionLang(fieldLang.toUpperCase())}>
+                <TextInput value={form.description[fieldLang]} onChange={(v) => setForm({ ...form, description: { ...form.description, [fieldLang]: v } })} />
               </Field>
             </div>
           ))}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-            <Field label="Sort order">
+            <Field label={t.sortOrder}>
               <TextInput type="number" value={form.sort_order} onChange={(v) => setForm({ ...form, sort_order: Number(v) || 0 })} />
             </Field>
-            <Field label="Active">
+            <Field label={t.active}>
               <Toggle checked={form.active} onChange={(v) => setForm({ ...form, active: v })} />
             </Field>
-            <Field label="Coming soon">
+            <Field label={t.comingSoonField}>
               <Toggle checked={form.coming_soon} onChange={(v) => setForm({ ...form, coming_soon: v })} />
             </Field>
           </div>
 
           {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
           <div className="flex justify-end gap-2">
-            <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>Cancel</button>
+            <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>{t.cancel}</button>
             <button onClick={save} disabled={saving || uploading} className="text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50" style={{ background: C.ink, color: C.bg }}>
-              {saving ? "Saving…" : "Save"}
+              {saving ? t.saving : t.save}
             </button>
           </div>
         </Modal>
@@ -920,10 +1087,10 @@
       );
     }
 
-    function LoadingBlock() {
+    function LoadingBlock({ t }) {
       return (
         <div className="flex items-center gap-2 justify-center py-16" style={{ color: C.inkSoft }}>
-          <Loader2 size={18} className="animate-spin" /> Loading…
+          <Loader2 size={18} className="animate-spin" /> {t ? t.loading : "Loading…"}
         </div>
       );
     }
