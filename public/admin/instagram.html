@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Simit Astana — WhatsApp Bot</title>
+  <title>Simit Astana — Instagram DM Bot</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -25,14 +25,17 @@
     import React, { useState, useEffect, useCallback } from "react";
     import { createRoot } from "react-dom/client";
     import {
-      Lock, LogOut, MessageCircle, Sparkles, ListChecks, Plus, Pencil, Trash2,
+      Lock, LogOut, Instagram, Sparkles, ListChecks, Plus, Pencil, Trash2,
       X, Loader2, Save, User, Hash, ShoppingCart, CheckCircle2, ArrowRight,
-      Plug, Copy, Check, RadioTower,
+      Plug, Copy, Check, RadioTower, AtSign,
     } from "lucide-react";
 
     /* ---------------------------------------------------------------------------
-       WhatsApp bot automation maker: welcome/follow-up messages, keyword-based
-       auto-replies, and a read-only look at the built-in order-taking chain.
+       Instagram DM bot automation maker: welcome/follow-up messages,
+       keyword-based auto-replies, and a read-only look at the built-in
+       order-taking chain. Same structure as whatsapp.html, just pointed at
+       the /api/admin/instagram/* endpoints and Instagram's connect-by-
+       profile-URL flow instead of WABA ID + phone number picker.
        Same auth pattern as the main admin dashboard - "Authorization: Bearer
        <ADMIN_PASS>", stored in sessionStorage under the same key so a link
        from the main dashboard in the same tab doesn't force a second login.
@@ -104,7 +107,7 @@
             <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: C.chip }}>
               <Lock size={20} style={{ color: C.accentDark }} />
             </div>
-            <h1 className="text-xl mb-1" style={{ ...serif, color: C.ink, fontWeight: 600 }}>WhatsApp Bot</h1>
+            <h1 className="text-xl mb-1" style={{ ...serif, color: C.ink, fontWeight: 600 }}>Instagram DM Bot</h1>
             <p className="text-sm mb-5" style={{ color: C.inkSoft }}>Enter the staff password to continue.</p>
             <input
               type="password"
@@ -199,9 +202,9 @@
         <div className="min-h-screen" style={{ background: C.bg, ...sans }}>
           <header className="sticky top-0 z-20 px-5 py-3 flex items-center justify-between" style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
             <div className="flex items-center gap-2">
-              <MessageCircle size={18} style={{ color: C.olive }} />
+              <Instagram size={18} style={{ color: C.olive }} />
               <span style={{ ...serif, color: C.ink, fontWeight: 700, fontSize: 18 }}>Simit Astana</span>
-              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.chip, color: C.accentDark }}>WhatsApp Bot</span>
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.chip, color: C.accentDark }}>Instagram DM Bot</span>
             </div>
             <div className="flex items-center gap-3">
               {savedFlash && (
@@ -282,17 +285,17 @@
       const [error, setError] = useState("");
 
       // Form state for (re)connecting.
-      const [wabaId, setWabaId] = useState("");
+      const [instagramUrl, setInstagramUrl] = useState("");
       const [accessToken, setAccessToken] = useState("");
       const [appSecret, setAppSecret] = useState("");
-      const [numbers, setNumbers] = useState(null); // null = not looked up yet
-      const [selectedNumberId, setSelectedNumberId] = useState("");
+      const [accounts, setAccounts] = useState(null); // null = not looked up yet
+      const [selectedPageId, setSelectedPageId] = useState("");
       const [looking, setLooking] = useState(false);
       const [saving, setSaving] = useState(false);
 
       const load = useCallback(async () => {
         try {
-          const data = await api("/api/admin/whatsapp/connection");
+          const data = await api("/api/admin/instagram/connection");
           setConnection(data.connection);
         } catch (err) {
           setError(err.message);
@@ -303,22 +306,22 @@
 
       useEffect(() => { load(); }, [load]);
 
-      async function lookupNumbers() {
-        if (!wabaId.trim() || !accessToken.trim()) {
-          setError("Paste both the WABA ID and the access token first.");
+      async function lookupAccounts() {
+        if (!instagramUrl.trim() || !accessToken.trim()) {
+          setError("Paste both your Instagram profile URL and the access token first.");
           return;
         }
         setLooking(true);
         setError("");
-        setNumbers(null);
+        setAccounts(null);
         try {
-          const data = await api("/api/admin/whatsapp/connection/lookup", {
+          const data = await api("/api/admin/instagram/connection/lookup", {
             method: "POST",
-            body: JSON.stringify({ wabaId, accessToken }),
+            body: JSON.stringify({ instagramUrl, accessToken }),
           });
-          setNumbers(data.numbers);
-          // Only one number on this WABA - select it automatically, no picker needed.
-          if (data.numbers.length === 1) setSelectedNumberId(data.numbers[0].id);
+          setAccounts(data.accounts);
+          // Only one Page matches that handle - select it automatically, no picker needed.
+          if (data.accounts.length === 1) setSelectedPageId(data.accounts[0].pageId);
         } catch (err) {
           setError(err.message);
         } finally {
@@ -327,26 +330,26 @@
       }
 
       async function connect() {
-        const chosen = numbers?.find((n) => n.id === selectedNumberId);
+        const chosen = accounts?.find((a) => a.pageId === selectedPageId);
         if (!chosen) {
-          setError("Pick a phone number first.");
+          setError("Pick an account first.");
           return;
         }
         setSaving(true);
         setError("");
         try {
-          const data = await api("/api/admin/whatsapp/connection", {
+          const data = await api("/api/admin/instagram/connection", {
             method: "POST",
             body: JSON.stringify({
-              wabaId,
+              pageId: chosen.pageId,
+              igUserId: chosen.igUserId,
+              igUsername: chosen.igUsername,
               accessToken,
-              phoneNumberId: chosen.id,
-              phoneNumberDisplay: chosen.displayPhoneNumber,
               ...(appSecret.trim() ? { appSecret } : {}),
             }),
           });
           setConnection(data.connection);
-          setNumbers(null);
+          setAccounts(null);
           setAccessToken("");
           setAppSecret("");
           onSaved();
@@ -361,17 +364,17 @@
 
       return (
         <div className="space-y-5">
-          {connection?.phoneNumberId && (
+          {connection?.igUserId && (
             <Card>
               <div className="flex items-center gap-2 mb-1">
                 <RadioTower size={16} style={{ color: C.olive }} />
                 <h2 className="text-base font-semibold" style={{ color: C.ink }}>Connected</h2>
               </div>
               <p className="text-sm mb-4" style={{ color: C.inkSoft }}>
-                {connection.phoneNumberDisplay || connection.phoneNumberId} is live and receiving messages.
+                @{connection.igUsername || connection.igUserId} is live and receiving DMs.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div><span style={{ color: C.inkSoft }}>WABA ID:</span> <span style={{ color: C.ink }}>{connection.wabaId}</span></div>
+                <div><span style={{ color: C.inkSoft }}>Instagram account:</span> <span style={{ color: C.ink }}>@{connection.igUsername}</span></div>
                 <div><span style={{ color: C.inkSoft }}>Access token:</span> <span style={{ color: C.ink }}>{connection.accessTokenMasked}</span></div>
                 <div><span style={{ color: C.inkSoft }}>App secret:</span> <span style={{ color: C.ink }}>{connection.appSecretSet ? "set" : "not set"}</span></div>
               </div>
@@ -380,20 +383,20 @@
 
           <Card>
             <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>
-              {connection?.phoneNumberId ? "Reconnect / switch number" : "Connect WhatsApp"}
+              {connection?.igUserId ? "Reconnect / switch account" : "Connect Instagram"}
             </h2>
             <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
-              Paste your WhatsApp Business Account (WABA) ID and a permanent access token from Meta's App dashboard. We'll fetch the phone numbers registered under it - pick the one you want to use.
+              Paste your Instagram profile URL (e.g. instagram.com/simit_astana) and a Facebook Page access token from Meta's App dashboard for the Page linked to that Instagram professional account. We'll confirm the match before connecting.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <div>
-                <Label>WABA ID</Label>
-                <TextInput value={wabaId} onChange={(e) => { setWabaId(e.target.value); setNumbers(null); }} placeholder="e.g. 123456789012345" />
+                <Label>Instagram profile URL</Label>
+                <TextInput value={instagramUrl} onChange={(e) => { setInstagramUrl(e.target.value); setAccounts(null); }} placeholder="instagram.com/your_handle" />
               </div>
               <div>
                 <Label>Access token</Label>
-                <TextInput type="password" value={accessToken} onChange={(e) => { setAccessToken(e.target.value); setNumbers(null); }} placeholder="EAAG..." />
+                <TextInput type="password" value={accessToken} onChange={(e) => { setAccessToken(e.target.value); setAccounts(null); }} placeholder="EAAG..." />
               </div>
             </div>
             <div className="mb-4">
@@ -401,54 +404,50 @@
               <TextInput type="password" value={appSecret} onChange={(e) => setAppSecret(e.target.value)} placeholder="Leave blank to skip verification" />
             </div>
 
-            {numbers === null && (
-              <PrimaryButton onClick={lookupNumbers} disabled={looking}>
-                {looking ? <Loader2 size={15} className="animate-spin" /> : <RadioTower size={15} />}
-                {looking ? "Looking up numbers…" : "Find numbers"}
+            {accounts === null && (
+              <PrimaryButton onClick={lookupAccounts} disabled={looking}>
+                {looking ? <Loader2 size={15} className="animate-spin" /> : <AtSign size={15} />}
+                {looking ? "Looking up account…" : "Find account"}
               </PrimaryButton>
             )}
 
-            {numbers && numbers.length > 1 && (
+            {accounts && accounts.length > 1 && (
               <div className="space-y-2 mb-4">
-                <Label>Choose a number</Label>
-                {numbers.map((n) => (
+                <Label>Choose an account</Label>
+                {accounts.map((a) => (
                   <label
-                    key={n.id}
+                    key={a.pageId}
                     className="flex items-center gap-3 rounded-lg p-3 cursor-pointer"
-                    style={{ border: `1px solid ${selectedNumberId === n.id ? C.accentDark : C.border}`, background: selectedNumberId === n.id ? C.chip : "transparent" }}
+                    style={{ border: `1px solid ${selectedPageId === a.pageId ? C.accentDark : C.border}`, background: selectedPageId === a.pageId ? C.chip : "transparent" }}
                   >
-                    <input type="radio" name="wa-number" checked={selectedNumberId === n.id} onChange={() => setSelectedNumberId(n.id)} />
+                    <input type="radio" name="ig-account" checked={selectedPageId === a.pageId} onChange={() => setSelectedPageId(a.pageId)} />
                     <div>
-                      <div className="text-sm font-semibold" style={{ color: C.ink }}>{n.displayPhoneNumber}</div>
-                      <div className="text-xs" style={{ color: C.inkSoft }}>{n.verifiedName} {n.qualityRating ? `· quality: ${n.qualityRating}` : ""}</div>
+                      <div className="text-sm font-semibold" style={{ color: C.ink }}>@{a.igUsername}</div>
+                      <div className="text-xs" style={{ color: C.inkSoft }}>Page: {a.pageName}</div>
                     </div>
                   </label>
                 ))}
               </div>
             )}
 
-            {numbers && numbers.length === 1 && (
+            {accounts && accounts.length === 1 && (
               <div className="rounded-lg p-3 mb-4 flex items-center gap-3" style={{ background: C.chip }}>
                 <Check size={16} style={{ color: C.olive }} />
                 <div className="text-sm" style={{ color: C.ink }}>
-                  Only one number found - <strong>{numbers[0].displayPhoneNumber}</strong> ({numbers[0].verifiedName}) selected automatically.
+                  Match found - <strong>@{accounts[0].igUsername}</strong> (Page: {accounts[0].pageName}) selected automatically.
                 </div>
               </div>
             )}
 
-            {numbers && numbers.length === 0 && (
-              <p className="text-sm mb-4" style={{ color: C.brick }}>No phone numbers found on that WABA.</p>
-            )}
-
             {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
 
-            {numbers && numbers.length > 0 && (
+            {accounts && accounts.length > 0 && (
               <div className="flex gap-2">
-                <PrimaryButton onClick={connect} disabled={saving || !selectedNumberId}>
+                <PrimaryButton onClick={connect} disabled={saving || !selectedPageId}>
                   {saving ? <Loader2 size={15} className="animate-spin" /> : <Plug size={15} />}
-                  {saving ? "Connecting…" : "Connect this number"}
+                  {saving ? "Connecting…" : "Connect this account"}
                 </PrimaryButton>
-                <button onClick={() => setNumbers(null)} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+                <button onClick={() => setAccounts(null)} className="text-sm px-4 py-2 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
                   Back
                 </button>
               </div>
@@ -459,8 +458,8 @@
             <Card>
               <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>Webhook setup (Meta App dashboard)</h2>
               <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
-                In WhatsApp → Configuration in your Meta App, paste this into the Callback URL field, then subscribe to the "messages" field.
-                For Verify Token, use the value of the <code>WHATSAPP_VERIFY_TOKEN</code> environment variable set on the server - it's a fixed secret configured there, not something you'll find or change here.
+                In Instagram → Configuration (or Webhooks) in your Meta App, paste this into the Callback URL field, then subscribe to the "messages" field.
+                For Verify Token, use the value of the <code>INSTAGRAM_VERIFY_TOKEN</code> environment variable set on the server (falls back to <code>META_VERIFY_TOKEN</code> if you're sharing one Meta app with WhatsApp) - it's a fixed secret configured there, not something you'll find or change here.
               </p>
               <div className="space-y-3">
                 <CopyField label="Callback URL" value={connection.webhookUrl} />
@@ -480,7 +479,7 @@
       const [error, setError] = useState("");
 
       useEffect(() => {
-        api("/api/admin/whatsapp/settings")
+        api("/api/admin/instagram/settings")
           .then((data) => setSettings(data.settings))
           .catch((err) => setError(err.message))
           .finally(() => setLoading(false));
@@ -495,11 +494,11 @@
         setError("");
         try {
           const { welcome_message, order_button_label, location_button_label, menu_button_label,
-                  followup_message, followup_delay_minutes, owner_whatsapp_number } = settings;
-          const data = await api("/api/admin/whatsapp/settings", {
+                  followup_message, followup_delay_minutes, owner_ig_sender_id } = settings;
+          const data = await api("/api/admin/instagram/settings", {
             method: "PUT",
             body: JSON.stringify({ welcome_message, order_button_label, location_button_label, menu_button_label,
-                                    followup_message, followup_delay_minutes, owner_whatsapp_number }),
+                                    followup_message, followup_delay_minutes, owner_ig_sender_id }),
           });
           setSettings(data.settings);
           onSaved();
@@ -536,7 +535,7 @@
                 <TextInput value={settings.menu_button_label} onChange={(e) => set("menu_button_label", e.target.value)} maxLength={20} />
               </div>
             </div>
-            <p className="text-xs mt-2" style={{ color: C.inkSoft }}>WhatsApp caps button labels at 20 characters.</p>
+            <p className="text-xs mt-2" style={{ color: C.inkSoft }}>Instagram quick replies are capped at 20 characters.</p>
           </Card>
 
           <Card>
@@ -555,12 +554,11 @@
           <Card>
             <h2 className="text-base font-semibold mb-1" style={{ color: C.ink }}>Owner notifications</h2>
             <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
-              WhatsApp number to ping ("🔔 New order...") the moment a customer confirms an order. Include the country code, digits only (e.g. 77001234567).
-              Note: WhatsApp only delivers this if you've messaged the bot number yourself within the last 24 hours (Meta's free-form "customer service window") -
-              orders are always saved and visible in the main admin regardless, so treat this as a bonus ping, not the source of truth.
+              Instagram-scoped sender ID (IGSID) to ping ("🔔 New order...") the moment a customer confirms an order. This isn't your @handle - it's the numeric id Meta assigns once that account has DM'd your Page at least once (visible in the ig_conversations table or your webhook logs).
+              Note: Instagram only delivers this if that account has messaged your Page within the messaging window - orders are always saved and visible in the main admin regardless, so treat this as a bonus ping, not the source of truth.
             </p>
-            <Label>Owner WhatsApp number</Label>
-            <TextInput value={settings.owner_whatsapp_number || ""} onChange={(e) => set("owner_whatsapp_number", e.target.value)} placeholder="77001234567" />
+            <Label>Owner Instagram sender ID</Label>
+            <TextInput value={settings.owner_ig_sender_id || ""} onChange={(e) => set("owner_ig_sender_id", e.target.value)} placeholder="17841400..." />
           </Card>
 
           {error && <p className="text-sm" style={{ color: C.brick }}>{error}</p>}
@@ -648,7 +646,7 @@
       const load = useCallback(async () => {
         try {
           setError("");
-          const data = await api("/api/admin/whatsapp/keywords");
+          const data = await api("/api/admin/instagram/keywords");
           setKeywords(data.keywords);
         } catch (err) {
           setError(err.message);
@@ -660,13 +658,13 @@
       useEffect(() => { load(); }, [load]);
 
       async function createKeyword(values) {
-        await api("/api/admin/whatsapp/keywords", { method: "POST", body: JSON.stringify(values) });
+        await api("/api/admin/instagram/keywords", { method: "POST", body: JSON.stringify(values) });
         setEditingId(null);
         onSaved();
         load();
       }
       async function updateKeyword(id, values) {
-        await api(`/api/admin/whatsapp/keywords/${id}`, { method: "PATCH", body: JSON.stringify(values) });
+        await api(`/api/admin/instagram/keywords/${id}`, { method: "PATCH", body: JSON.stringify(values) });
         setEditingId(null);
         onSaved();
         load();
@@ -674,7 +672,7 @@
       async function toggleActive(row) {
         setBusyId(row.id);
         try {
-          await api(`/api/admin/whatsapp/keywords/${row.id}`, { method: "PATCH", body: JSON.stringify({ active: !row.active }) });
+          await api(`/api/admin/instagram/keywords/${row.id}`, { method: "PATCH", body: JSON.stringify({ active: !row.active }) });
           load();
         } catch (err) {
           alert(err.message);
@@ -686,7 +684,7 @@
         if (!confirm(`Delete the "${row.keyword}" automation?`)) return;
         setBusyId(row.id);
         try {
-          await api(`/api/admin/whatsapp/keywords/${row.id}`, { method: "DELETE" });
+          await api(`/api/admin/instagram/keywords/${row.id}`, { method: "DELETE" });
           load();
         } catch (err) {
           alert(err.message);
@@ -798,7 +796,7 @@
           <div className="rounded-xl p-4 flex items-start gap-3" style={{ background: C.chip }}>
             <ArrowRight size={16} style={{ color: C.accentDark }} className="shrink-0 mt-0.5" />
             <p className="text-sm" style={{ color: C.ink }}>
-              On confirm, the order is saved exactly like a web order (channel = "whatsapp") and appears immediately in the main admin's Orders tab - plus an optional WhatsApp ping to the owner number set under "Welcome & Follow-up".
+              On confirm, the order is saved exactly like a web order (channel = "instagram") and appears immediately in the main admin's Orders tab - plus an optional Instagram DM ping to the owner sender ID set under "Welcome & Follow-up".
             </p>
           </div>
         </Card>

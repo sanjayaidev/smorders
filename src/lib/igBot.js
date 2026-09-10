@@ -1,6 +1,6 @@
 import { supabase } from "../supabaseClient.js";
 import { generateOrderCode } from "./orderCode.js";
-import { sendWhatsAppText, sendWhatsAppButtons } from "./whatsapp.js";
+import { sendInstagramText, sendInstagramQuickReplies } from "./instagram.js";
 import { getActiveMenu, matchItemsWithAI, aiFallbackReply, formatCart, cartTotal } from "./orderMatch.js";
 
 const BUTTON_ORDER = "order";
@@ -14,23 +14,23 @@ function todayStr() {
 }
 
 async function getSettings() {
-  const { data, error } = await supabase.from("wa_settings").select("*").eq("id", 1).single();
+  const { data, error } = await supabase.from("ig_settings").select("*").eq("id", 1).single();
   if (error) throw error;
   return data;
 }
 
-async function getOrCreateConversation(phoneNumber, profileName) {
+async function getOrCreateConversation(senderId, profileName) {
   const { data: existing, error } = await supabase
-    .from("wa_conversations")
+    .from("ig_conversations")
     .select("*")
-    .eq("phone_number", phoneNumber)
+    .eq("sender_id", senderId)
     .maybeSingle();
   if (error) throw error;
   if (existing) return existing;
 
   const { data: created, error: insertError } = await supabase
-    .from("wa_conversations")
-    .insert({ phone_number: phoneNumber, profile_name: profileName || null })
+    .from("ig_conversations")
+    .insert({ sender_id: senderId, profile_name: profileName || null })
     .select()
     .single();
   if (insertError) throw insertError;
@@ -39,7 +39,7 @@ async function getOrCreateConversation(phoneNumber, profileName) {
 
 async function updateConversation(id, patch) {
   const { data, error } = await supabase
-    .from("wa_conversations")
+    .from("ig_conversations")
     .update({ ...patch, last_message_at: new Date().toISOString(), followup_sent: false })
     .eq("id", id)
     .select()
@@ -48,18 +48,17 @@ async function updateConversation(id, patch) {
   return data;
 }
 
-async function logMessage(conversationId, direction, body, waMessageId) {
-  // waMessageId is only present (and used as the PK) for inbound messages,
-  // which is what lets us dedupe webhook retries. Outbound log rows get a
-  // random id since Graph API message ids for sends aren't threaded back
-  // here synchronously in every code path.
-  const id = waMessageId || `out_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+async function logMessage(conversationId, direction, body, igMessageId) {
+  // igMessageId ("mid") is only present (and used as the PK) for inbound
+  // messages, which is what lets us dedupe webhook retries. Outbound log
+  // rows get a random id.
+  const id = igMessageId || `out_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const { error } = await supabase
-    .from("wa_messages")
+    .from("ig_messages")
     .insert({ id, conversation_id: conversationId, direction, body });
   // Ignore unique-violation (23505) - it just means we've already logged
   // (and therefore already processed) this exact inbound message id.
-  if (error && error.code !== "23505") console.error("wa_messages insert failed:", error.message);
+  if (error && error.code !== "23505") console.error("ig_messages insert failed:", error.message);
   return !error || error.code !== "23505";
 }
 
@@ -68,7 +67,7 @@ async function findKeywordMatch(text) {
   if (!normalized) return null;
 
   const { data: keywords, error } = await supabase
-    .from("wa_keywords")
+    .from("ig_keywords")
     .select("*")
     .eq("active", true)
     .order("sort_order", { ascending: true });
@@ -83,8 +82,8 @@ async function findKeywordMatch(text) {
 }
 
 async function sendWelcome(conversation, settings) {
-  await sendWhatsAppText(conversation.phone_number, settings.welcome_message);
-  await sendWhatsAppButtons(conversation.phone_number, "What would you like to do?", [
+  await sendInstagramText(conversation.sender_id, settings.welcome_message);
+  await sendInstagramQuickReplies(conversation.sender_id, "What would you like to do?", [
     { id: BUTTON_ORDER, title: settings.order_button_label },
     { id: BUTTON_LOCATION, title: settings.location_button_label },
     { id: BUTTON_MENU, title: settings.menu_button_label },
@@ -92,7 +91,7 @@ async function sendWelcome(conversation, settings) {
 }
 
 async function notifyOwner(settings, conversation, order) {
-  if (!settings.owner_whatsapp_number) return;
+  if (!settings.owner_ig_sender_id) return;
   const lines = order.items
     .map((i) => `${i.quantity}× ${i.product_name} - ${i.unit_price * i.quantity} ${order.currency}`)
     .join("\n");
@@ -102,40 +101,37 @@ async function notifyOwner(settings, conversation, order) {
     `Table: ${order.table_no}\n\n` +
     `${lines}\n\nTotal: ${order.total} ${order.currency}`;
   try {
-    await sendWhatsAppText(settings.owner_whatsapp_number, text);
+    await sendInstagramText(settings.owner_ig_sender_id, text);
   } catch (err) {
-    // Most likely cause: the owner hasn't messaged this WhatsApp number in
-    // the last 24h ("outside the customer service window"), and this isn't
-    // a pre-approved template message, so Meta refuses to deliver it. The
-    // order itself is already saved and visible on /admin either way - this
+    // Order itself is already saved and visible on /admin either way - this
     // notification is best-effort on top of that, not the source of truth.
-    console.error("notifyOwner failed (likely outside 24h window):", err.message);
+    console.error("notifyOwner (Instagram) failed:", err.message);
   }
 }
 
 /**
- * Entry point called by the webhook route for every inbound customer
- * message. Handles: the once-a-day welcome, admin-defined keyword
- * automations, and the built-in Name -> Table -> Items -> Confirm order
- * chain. Never throws for "normal" flow issues - errors are logged and the
- * customer gets a graceful fallback reply instead of silence.
+ * Entry point called by the webhook route for every inbound customer DM.
+ * Same shape as waBot.js's handleIncomingMessage - the once-a-day welcome,
+ * admin-defined keyword automations, and the built-in Name -> Table -> Items
+ * -> Confirm order chain. Never throws for "normal" flow issues - errors are
+ * logged and the customer gets a graceful fallback reply instead of silence.
  */
-export async function handleIncomingMessage({ phoneNumber, profileName, text, buttonId, waMessageId }) {
-  if (waMessageId) {
-    const isNew = await logMessage(null, "inbound", text, waMessageId);
+export async function handleIncomingMessage({ senderId, profileName, text, buttonId, igMessageId }) {
+  if (igMessageId) {
+    const isNew = await logMessage(null, "inbound", text, igMessageId);
     if (!isNew) return; // already processed this exact message (webhook retry)
   }
 
   const settings = await getSettings();
-  let conversation = await getOrCreateConversation(phoneNumber, profileName);
+  let conversation = await getOrCreateConversation(senderId, profileName);
 
   // Backfill the conversation_id on the inbound log row now that we have it.
-  if (waMessageId) {
-    await supabase.from("wa_messages").update({ conversation_id: conversation.id }).eq("id", waMessageId);
+  if (igMessageId) {
+    await supabase.from("ig_messages").update({ conversation_id: conversation.id }).eq("id", igMessageId);
   }
 
   const reply = async (body) => {
-    await sendWhatsAppText(phoneNumber, body);
+    await sendInstagramText(senderId, body);
     await logMessage(conversation.id, "outbound", body);
   };
 
@@ -160,7 +156,7 @@ export async function handleIncomingMessage({ phoneNumber, profileName, text, bu
     return;
   }
 
-  // --- Start the order chain (button tap or typed "order") -------------
+  // --- Start the order chain (quick-reply tap or typed "order") --------
   if (buttonId === BUTTON_ORDER || (conversation.stage === "idle" && normalized === "order")) {
     conversation = await updateConversation(conversation.id, { stage: "ask_name" });
     await reply("Great, let's get your order started! What name should I put on it?");
@@ -213,7 +209,7 @@ export async function handleIncomingMessage({ phoneNumber, profileName, text, bu
       try {
         matched = await matchItemsWithAI(input, products);
       } catch (err) {
-        console.error("matchItemsWithAI failed:", err.message);
+        console.error("matchItemsWithAI (Instagram) failed:", err.message);
         await reply("Sorry, I had trouble reading that - could you list the items again?");
         return;
       }
@@ -237,9 +233,9 @@ export async function handleIncomingMessage({ phoneNumber, profileName, text, bu
       if (matched.unmatchedText) {
         summary += `\n\n(I couldn't match "${matched.unmatchedText}" to anything on the menu, so I left it out.)`;
       }
-      await sendWhatsAppText(phoneNumber, summary);
+      await sendInstagramText(senderId, summary);
       await logMessage(conversation.id, "outbound", summary);
-      await sendWhatsAppButtons(phoneNumber, "Ready to send this to the kitchen?", [
+      await sendInstagramQuickReplies(senderId, "Ready to send this to the kitchen?", [
         { id: BUTTON_CONFIRM, title: "✅ Confirm" },
         { id: BUTTON_MODIFY, title: "✏️ Add / change" },
       ]);
@@ -264,7 +260,7 @@ export async function handleIncomingMessage({ phoneNumber, profileName, text, bu
           .from("orders")
           .insert({
             order_code: generateOrderCode(),
-            channel: "whatsapp",
+            channel: "instagram",
             customer_name: conversation.customer_name,
             table_no: conversation.table_no,
             lang: "en",
@@ -275,7 +271,7 @@ export async function handleIncomingMessage({ phoneNumber, profileName, text, bu
           .select()
           .single();
         if (orderError) {
-          console.error("WhatsApp order insert failed:", orderError.message);
+          console.error("Instagram order insert failed:", orderError.message);
           await reply("Sorry, something went wrong placing that order - please try confirming again.");
           return;
         }
@@ -289,7 +285,7 @@ export async function handleIncomingMessage({ phoneNumber, profileName, text, bu
             unit_price: c.price,
           }))
         );
-        if (itemsError) console.error("WhatsApp order_items insert failed:", itemsError.message);
+        if (itemsError) console.error("Instagram order_items insert failed:", itemsError.message);
 
         conversation = await updateConversation(conversation.id, {
           stage: "idle",
@@ -322,31 +318,30 @@ export async function handleIncomingMessage({ phoneNumber, profileName, text, bu
 
 /**
  * Polls for conversations that have gone quiet mid-flow and sends the
- * admin-configured follow-up nudge once. Intended to be run on an interval
- * from index.js - this app is a long-running Node process (not serverless),
- * so a simple setInterval is a reasonable stand-in for a real job queue here.
+ * admin-configured follow-up nudge once. Same setInterval-driven pattern as
+ * waBot.js's sendPendingFollowups.
  */
-export async function sendPendingFollowups() {
+export async function sendPendingIgFollowups() {
   const settings = await getSettings();
   const cutoff = new Date(Date.now() - settings.followup_delay_minutes * 60 * 1000).toISOString();
 
   const { data: stale, error } = await supabase
-    .from("wa_conversations")
-    .select("id, phone_number")
+    .from("ig_conversations")
+    .select("id, sender_id")
     .neq("stage", "idle")
     .eq("followup_sent", false)
     .lt("last_message_at", cutoff);
   if (error) {
-    console.error("sendPendingFollowups query failed:", error.message);
+    console.error("sendPendingIgFollowups query failed:", error.message);
     return;
   }
 
   for (const convo of stale) {
     try {
-      await sendWhatsAppText(convo.phone_number, settings.followup_message);
-      await supabase.from("wa_conversations").update({ followup_sent: true }).eq("id", convo.id);
+      await sendInstagramText(convo.sender_id, settings.followup_message);
+      await supabase.from("ig_conversations").update({ followup_sent: true }).eq("id", convo.id);
     } catch (err) {
-      console.error(`Follow-up to ${convo.phone_number} failed:`, err.message);
+      console.error(`Instagram follow-up to ${convo.sender_id} failed:`, err.message);
     }
   }
 }

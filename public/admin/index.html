@@ -74,7 +74,7 @@
       en: {
         loginTitle: "Simit Astana Admin", loginSubtitle: "Enter the staff password to continue.",
         passwordPlaceholder: "Password", checking: "Checking…", signIn: "Sign in",
-        incorrectPassword: "Incorrect password.", adminBadge: "Admin", whatsappBot: "WhatsApp Bot",
+        incorrectPassword: "Incorrect password.", adminBadge: "Admin", whatsappBot: "WhatsApp Bot", instagramBot: "Instagram Bot",
         logout: "Log out", ordersTab: "Orders", productsTab: "Products", language: "Language",
         allFilter: "All", refresh: "Refresh", noOrdersYet: "No orders here yet.", table: "Table",
         item: "item", items: "items", reason: "Reason", note: "Note", cancel: "Cancel",
@@ -102,7 +102,7 @@
       ru: {
         loginTitle: "Админ-панель Simit Astana", loginSubtitle: "Введите пароль сотрудника, чтобы продолжить.",
         passwordPlaceholder: "Пароль", checking: "Проверка…", signIn: "Войти",
-        incorrectPassword: "Неверный пароль.", adminBadge: "Админ", whatsappBot: "WhatsApp-бот",
+        incorrectPassword: "Неверный пароль.", adminBadge: "Админ", whatsappBot: "WhatsApp-бот", instagramBot: "Instagram-бот",
         logout: "Выйти", ordersTab: "Заказы", productsTab: "Товары", language: "Язык",
         allFilter: "Все", refresh: "Обновить", noOrdersYet: "Заказов пока нет.", table: "Стол",
         item: "товар", items: "товара(ов)", reason: "Причина", note: "Примечание", cancel: "Отмена",
@@ -130,7 +130,7 @@
       kk: {
         loginTitle: "Simit Astana әкімшілік панелі", loginSubtitle: "Жалғастыру үшін қызметкер құпия сөзін енгізіңіз.",
         passwordPlaceholder: "Құпия сөз", checking: "Тексерілуде…", signIn: "Кіру",
-        incorrectPassword: "Құпия сөз қате.", adminBadge: "Админ", whatsappBot: "WhatsApp боты",
+        incorrectPassword: "Құпия сөз қате.", adminBadge: "Админ", whatsappBot: "WhatsApp боты", instagramBot: "Instagram боты",
         logout: "Шығу", ordersTab: "Тапсырыстар", productsTab: "Тағамдар", language: "Тіл",
         allFilter: "Барлығы", refresh: "Жаңарту", noOrdersYet: "Әзірге тапсырыс жоқ.", table: "Үстел",
         item: "тағам", items: "тағам(дар)", reason: "Себебі", note: "Ескертпе", cancel: "Бас тарту",
@@ -158,7 +158,7 @@
       tr: {
         loginTitle: "Simit Astana Yönetici Paneli", loginSubtitle: "Devam etmek için personel şifresini girin.",
         passwordPlaceholder: "Şifre", checking: "Kontrol ediliyor…", signIn: "Giriş yap",
-        incorrectPassword: "Şifre yanlış.", adminBadge: "Yönetici", whatsappBot: "WhatsApp Botu",
+        incorrectPassword: "Şifre yanlış.", adminBadge: "Yönetici", whatsappBot: "WhatsApp Botu", instagramBot: "Instagram Botu",
         logout: "Çıkış yap", ordersTab: "Siparişler", productsTab: "Ürünler", language: "Dil",
         allFilter: "Tümü", refresh: "Yenile", noOrdersYet: "Henüz sipariş yok.", table: "Masa",
         item: "ürün", items: "ürün", reason: "Sebep", note: "Not", cancel: "İptal",
@@ -342,6 +342,9 @@
               <LanguageSwitcher lang={lang} setLang={setLang} compact />
               <a href="/admin/whatsapp.html" className="text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
                 {t.whatsappBot}
+              </a>
+              <a href="/admin/instagram.html" className="text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+                {t.instagramBot}
               </a>
               <button onClick={logout} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
                 <LogOut size={14} /> {t.logout}

@@ -16,7 +16,12 @@ import whatsappWebhookRouter from "./routes/whatsappWebhook.js";
 import adminWhatsappSettingsRouter from "./routes/adminWhatsappSettings.js";
 import adminWhatsappKeywordsRouter from "./routes/adminWhatsappKeywords.js";
 import adminWhatsappConnectionRouter from "./routes/adminWhatsappConnection.js";
+import instagramWebhookRouter from "./routes/instagramWebhook.js";
+import adminInstagramSettingsRouter from "./routes/adminInstagramSettings.js";
+import adminInstagramKeywordsRouter from "./routes/adminInstagramKeywords.js";
+import adminInstagramConnectionRouter from "./routes/adminInstagramConnection.js";
 import { sendPendingFollowups } from "./lib/waBot.js";
+import { sendPendingIgFollowups } from "./lib/igBot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -46,10 +51,17 @@ app.use("/api/admin/categories", adminAuth, adminCategoriesRouter);
 app.use("/api/admin/whatsapp/settings", adminAuth, adminWhatsappSettingsRouter);
 app.use("/api/admin/whatsapp/keywords", adminAuth, adminWhatsappKeywordsRouter);
 app.use("/api/admin/whatsapp/connection", adminAuth, adminWhatsappConnectionRouter);
+app.use("/api/admin/instagram/settings", adminAuth, adminInstagramSettingsRouter);
+app.use("/api/admin/instagram/keywords", adminAuth, adminInstagramKeywordsRouter);
+app.use("/api/admin/instagram/connection", adminAuth, adminInstagramConnectionRouter);
 
 // Meta's webhook - no adminAuth (Meta can't send our admin password), it's
 // gated instead by the verify token (GET) and X-Hub-Signature-256 (POST).
 app.use("/api/whatsapp/webhook", whatsappWebhookRouter);
+
+// Same reasoning as the WhatsApp webhook above: no adminAuth, gated instead
+// by the verify token (GET) and X-Hub-Signature-256 (POST).
+app.use("/api/instagram/webhook", instagramWebhookRouter);
 
 // Serve the customer-facing frontend (public/index.html) at the root,
 // same-origin as the API - so fetch("/api/menu") just works with no
@@ -69,8 +81,9 @@ app.listen(PORT, () => {
   console.log(`Simit Astana server listening on port ${PORT}`);
 });
 
-// Checks every minute for WhatsApp conversations that have gone quiet
-// mid-order and sends the admin-configured follow-up nudge once each.
+// Checks every minute for WhatsApp/Instagram conversations that have gone
+// quiet mid-order and sends the admin-configured follow-up nudge once each.
 setInterval(() => {
   sendPendingFollowups().catch((err) => console.error("sendPendingFollowups crashed:", err));
+  sendPendingIgFollowups().catch((err) => console.error("sendPendingIgFollowups crashed:", err));
 }, 60 * 1000);

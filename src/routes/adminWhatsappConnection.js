@@ -27,7 +27,9 @@ router.get("/", async (req, res, next) => {
         appSecretSet: Boolean(data.app_secret),
         phoneNumberId: data.phone_number_id,
         phoneNumberDisplay: data.phone_number_display,
-        verifyToken: data.verify_token,
+        // The verify token now lives only in WHATSAPP_VERIFY_TOKEN (env) -
+        // it's a static shared secret for Meta's webhook config, not
+        // something the admin UI needs to display or let anyone change.
         webhookUrl: `${req.protocol}://${req.get("host")}/api/whatsapp/webhook`,
       },
     });
@@ -114,7 +116,6 @@ router.post("/", async (req, res, next) => {
         appSecretSet: Boolean(data.app_secret),
         phoneNumberId: data.phone_number_id,
         phoneNumberDisplay: data.phone_number_display,
-        verifyToken: data.verify_token,
         webhookUrl: `${req.protocol}://${req.get("host")}/api/whatsapp/webhook`,
       },
     });

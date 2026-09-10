@@ -6,9 +6,15 @@ const CACHE_TTL_MS = 30_000;
 
 /**
  * Returns { wabaId, accessToken, appSecret, phoneNumberId, phoneNumberDisplay, verifyToken }.
- * DB values (set via the admin "Connection" panel) win; falls back to
- * environment variables for anyone who'd rather configure it that way.
- * Cached briefly since every inbound message reads this at least once.
+ * DB values (set via the admin "Connection" panel) win for everything except
+ * the webhook verify token; falls back to environment variables for anyone
+ * who'd rather configure it that way. Cached briefly since every inbound
+ * message reads this at least once.
+ *
+ * verifyToken is intentionally ALWAYS read from WHATSAPP_VERIFY_TOKEN - it's
+ * not stored in the DB and isn't editable from the admin UI, since it's just
+ * a shared secret between this server and Meta's webhook config and doesn't
+ * need to be rotated through the app.
  */
 export async function getWaConnection() {
   if (cache && Date.now() < cacheExpiresAt) return cache;
@@ -22,7 +28,7 @@ export async function getWaConnection() {
     appSecret: data?.app_secret || process.env.WHATSAPP_APP_SECRET || null,
     phoneNumberId: data?.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || null,
     phoneNumberDisplay: data?.phone_number_display || null,
-    verifyToken: data?.verify_token || process.env.WHATSAPP_VERIFY_TOKEN || null,
+    verifyToken: process.env.WHATSAPP_VERIFY_TOKEN || null,
   };
   cacheExpiresAt = Date.now() + CACHE_TTL_MS;
   return cache;
