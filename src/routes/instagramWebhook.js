@@ -34,15 +34,27 @@ router.get("/", async (req, res) => {
  * surfaced as a failed response.
  */
 router.post("/", async (req, res) => {
+  // Log webhook reception for testing/debugging
+  console.log("[Instagram Webhook] Received webhook at:", new Date().toISOString());
+  console.log("[Instagram Webhook] Raw body:", JSON.stringify(req.body, null, 2));
+  console.log("[Instagram Webhook] Headers:", JSON.stringify({
+    'x-hub-signature-256': req.headers['x-hub-signature-256'] ? '[present]' : '[missing]',
+    'content-type': req.headers['content-type']
+  }, null, 2));
+
   res.sendStatus(200); // ack immediately; process after responding
 
   try {
     if (!(await verifyInstagramSignature(req.rawBody, req.headers["x-hub-signature-256"]))) {
-      console.error("Instagram webhook: signature verification failed, dropping payload.");
+      console.error("[Instagram Webhook] Signature verification failed, dropping payload.");
       return;
     }
 
+    console.log("[Instagram Webhook] Signature verified successfully");
+
     const entries = req.body?.entry || [];
+    console.log(`[Instagram Webhook] Processing ${entries.length} entry/entries`);
+
     for (const entry of entries) {
       for (const event of entry.messaging || []) {
         const senderId = event.sender?.id;
@@ -60,14 +72,17 @@ router.post("/", async (req, res) => {
         } else if (typeof event.message.text === "string") {
           text = event.message.text;
         } else {
+          console.log("[Instagram Webhook] Skipping non-text message:", JSON.stringify(event.message));
           continue; // attachments (images, stickers, etc.) - not handled yet
         }
 
+        console.log(`[Instagram Webhook] Processing message from senderId=${senderId}, text="${text}", buttonId=${buttonId}`);
         await handleIncomingMessage({ senderId, profileName: null, text, buttonId, igMessageId });
       }
     }
+    console.log("[Instagram Webhook] Successfully processed all entries");
   } catch (err) {
-    console.error("Instagram webhook processing error:", err);
+    console.error("[Instagram Webhook] Processing error:", err);
   }
 });
 
