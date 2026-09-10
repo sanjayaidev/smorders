@@ -45,9 +45,13 @@ router.post("/", async (req, res) => {
   res.sendStatus(200); // ack immediately; process after responding
 
   try {
-    if (!(await verifyInstagramSignature(req.rawBody, req.headers["x-hub-signature-256"]))) {
+    const signatureCheck = await verifyInstagramSignature(req.rawBody, req.headers["x-hub-signature-256"]);
+    if (!signatureCheck) {
       console.error("[Instagram Webhook] Signature verification failed, dropping payload.");
       return;
+    }
+    if (signatureCheck === true && !(await getIgConnection()).appSecret) {
+      console.log("[Instagram Webhook] App Secret not configured - skipping signature verification (warning: insecure for production)");
     }
 
     console.log("[Instagram Webhook] Signature verified successfully");
@@ -55,13 +59,22 @@ router.post("/", async (req, res) => {
     const entries = req.body?.entry || [];
     console.log(`[Instagram Webhook] Processing ${entries.length} entry/entries`);
 
+    if (entries.length === 0) {
+      console.log("[Instagram Webhook] No entries found in webhook payload - this may be a test webhook or status-only update");
+    }
+
     for (const entry of entries) {
+      console.log("[Instagram Webhook] Entry ID:", entry.id, "Messaging events:", entry.messaging?.length || 0);
       for (const event of entry.messaging || []) {
         const senderId = event.sender?.id;
-        if (!senderId) continue;
-
+        const recipientId = event.recipient?.id;
+        console.log("[Instagram Webhook] Event from sender:", senderId, "to recipient:", recipientId, "Message:", event.message ? "present" : "absent");
+        
         // Ignore delivery/read receipts and echoes of messages we sent ourselves.
-        if (!event.message || event.message.is_echo) continue;
+        if (!event.message || event.message.is_echo) {
+          console.log("[Instagram Webhook] Skipping non-message or echo event:", JSON.stringify(event));
+          continue;
+        }
 
         const igMessageId = event.message.mid;
         let text = "";
