@@ -45,9 +45,13 @@ router.post("/", async (req, res) => {
   res.sendStatus(200); // ack immediately; process after responding
 
   try {
-    if (!(await verifyWhatsAppSignature(req.rawBody, req.headers["x-hub-signature-256"]))) {
+    const signatureCheck = await verifyWhatsAppSignature(req.rawBody, req.headers["x-hub-signature-256"]);
+    if (!signatureCheck) {
       console.error("[WhatsApp Webhook] Signature verification failed, dropping payload.");
       return;
+    }
+    if (signatureCheck === true && !(await getWaConnection()).appSecret) {
+      console.log("[WhatsApp Webhook] App Secret not configured - skipping signature verification (warning: insecure for production)");
     }
 
     console.log("[WhatsApp Webhook] Signature verified successfully");
@@ -55,9 +59,15 @@ router.post("/", async (req, res) => {
     const entries = req.body?.entry || [];
     console.log(`[WhatsApp Webhook] Processing ${entries.length} entry/entries`);
 
+    if (entries.length === 0) {
+      console.log("[WhatsApp Webhook] No entries found in webhook payload - this may be a test webhook or status-only update");
+    }
+
     for (const entry of entries) {
+      console.log("[WhatsApp Webhook] Entry ID:", entry.id, "Changes:", entry.changes?.length || 0);
       for (const change of entry.changes || []) {
         const value = change.value || {};
+        console.log("[WhatsApp Webhook] Change field:", change.field, "Metadata:", value.metadata?.phone_number_display || value.contacts?.[0]?.profile?.name || "N/A");
         for (const message of value.messages || []) {
           const phoneNumber = message.from; // digits only, e.g. "77001234567"
           const profileName = value.contacts?.[0]?.profile?.name;
@@ -81,6 +91,11 @@ router.post("/", async (req, res) => {
 
           console.log(`[WhatsApp Webhook] Processing message from phoneNumber=${phoneNumber}, profileName=${profileName}, text="${text}", buttonId=${buttonId}`);
           await handleIncomingMessage({ phoneNumber, profileName, text, buttonId, waMessageId });
+        }
+        
+        // Log status updates separately
+        if (value.statuses && value.statuses.length > 0) {
+          console.log("[WhatsApp Webhook] Status update received:", JSON.stringify(value.statuses));
         }
       }
     }
