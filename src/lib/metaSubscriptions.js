@@ -13,10 +13,10 @@ async function subscribe(url, accessToken, label) {
   return payload;
 }
 
-/** Subscribes the selected WhatsApp phone number to this app's webhooks. */
-export function subscribeWhatsAppWebhook(phoneNumberId, accessToken) {
+/** Subscribes the WhatsApp Business Account to this app's webhooks. */
+export function subscribeWhatsAppWebhook(wabaId, accessToken) {
   return subscribe(
-    `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${phoneNumberId}/subscribed_apps`,
+    `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${wabaId}/subscribed_apps`,
     accessToken,
     "WhatsApp"
   );

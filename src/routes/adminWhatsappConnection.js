@@ -115,7 +115,7 @@ router.post("/", async (req, res, next) => {
     invalidateWaConnectionCache();
     let webhookSubscription;
     try {
-      webhookSubscription = await subscribeWhatsAppWebhook(data.phone_number_id, data.access_token);
+      webhookSubscription = await subscribeWhatsAppWebhook(data.waba_id, data.access_token);
     } catch (subscriptionError) {
       return res.status(502).json({
         error: `WhatsApp was saved, but Meta could not subscribe the number to webhooks: ${subscriptionError.message}`,
