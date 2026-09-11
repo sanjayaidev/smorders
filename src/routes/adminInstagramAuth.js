@@ -84,6 +84,7 @@ callbackRouter.get("/callback", async (req, res) => {
       client_secret: appSecret,
       redirect_uri: state.redirectUri,
       code: req.query.code,
+      grant_type: "authorization_code",
     });
     const tokenRes = await fetch("https://api.instagram.com/oauth/access_token", {
       method: "POST",
