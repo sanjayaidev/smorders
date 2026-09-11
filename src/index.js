@@ -20,6 +20,7 @@ import instagramWebhookRouter from "./routes/instagramWebhook.js";
 import adminInstagramSettingsRouter from "./routes/adminInstagramSettings.js";
 import adminInstagramKeywordsRouter from "./routes/adminInstagramKeywords.js";
 import adminInstagramConnectionRouter from "./routes/adminInstagramConnection.js";
+import adminInstagramAuthRouter, { instagramAuthCallbackRouter } from "./routes/adminInstagramAuth.js";
 import adminWebhookEventsRouter from "./routes/adminWebhookEvents.js";
 import { sendPendingFollowups } from "./lib/waBot.js";
 import { sendPendingIgFollowups } from "./lib/igBot.js";
@@ -28,6 +29,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || "*" }));
+// Meta signatures cover the exact bytes received. Parse these public routes
+// as raw JSON before the global JSON parser runs.
+app.use(["/webhooks/whatsapp", "/webhooks/instagram", "/api/whatsapp/webhook", "/api/instagram/webhook"], express.raw({
+  type: "application/json",
+  limit: "2mb",
+  verify: (req, res, buf) => { req.rawBody = buf; },
+}));
 // `verify` stashes the raw request body on req.rawBody - the WhatsApp
 // webhook needs the exact bytes (not the reserialized object) to check
 // Meta's X-Hub-Signature-256 header.
@@ -56,14 +64,18 @@ app.use("/api/admin/instagram/settings", adminAuth, adminInstagramSettingsRouter
 app.use("/api/admin/instagram/keywords", adminAuth, adminInstagramKeywordsRouter);
 app.use("/api/admin/instagram/connection", adminAuth, adminInstagramConnectionRouter);
 app.use("/api/admin/webhook-events", adminAuth, adminWebhookEventsRouter);
+app.use("/api/admin/instagram", adminAuth, adminInstagramAuthRouter);
+app.use("/api/auth/instagram", instagramAuthCallbackRouter);
 
 // Meta's webhook - no adminAuth (Meta can't send our admin password), it's
 // gated instead by the verify token (GET) and X-Hub-Signature-256 (POST).
 app.use("/api/whatsapp/webhook", whatsappWebhookRouter);
+app.use("/webhooks/whatsapp", whatsappWebhookRouter);
 
 // Same reasoning as the WhatsApp webhook above: no adminAuth, gated instead
 // by the verify token (GET) and X-Hub-Signature-256 (POST).
 app.use("/api/instagram/webhook", instagramWebhookRouter);
+app.use("/webhooks/instagram", instagramWebhookRouter);
 
 // Serve the customer-facing frontend (public/index.html) at the root,
 // same-origin as the API - so fetch("/api/menu") just works with no

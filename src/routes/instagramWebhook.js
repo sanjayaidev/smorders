@@ -3,6 +3,7 @@ import { verifyInstagramSignature } from "../lib/instagram.js";
 import { getIgConnection } from "../lib/igConnection.js";
 import { handleIncomingMessage } from "../lib/igBot.js";
 import { logWebhookEvent } from "../lib/webhookLog.js";
+import { parseMetaWebhookBody } from "../middleware/metaWebhookBody.js";
 
 const router = Router();
 
@@ -35,9 +36,10 @@ router.get("/", async (req, res) => {
  * surfaced as a failed response.
  */
 router.post("/", async (req, res) => {
+  const payload = parseMetaWebhookBody(req);
   // Log webhook reception for testing/debugging
   console.log("[Instagram Webhook] Received webhook at:", new Date().toISOString());
-  console.log("[Instagram Webhook] Raw body:", JSON.stringify(req.body, null, 2));
+  console.log("[Instagram Webhook] Raw body:", JSON.stringify(payload, null, 2));
   console.log("[Instagram Webhook] Headers:", JSON.stringify({
     'x-hub-signature-256': req.headers['x-hub-signature-256'] ? '[present]' : '[missing]',
     'content-type': req.headers['content-type']
@@ -63,7 +65,8 @@ router.post("/", async (req, res) => {
 
     console.log("[Instagram Webhook] Signature verified successfully");
 
-    const entries = req.body?.entry || [];
+    if (!payload) throw new Error("Invalid JSON webhook payload.");
+    const entries = payload.entry || [];
     console.log(`[Instagram Webhook] Processing ${entries.length} entry/entries`);
 
     if (entries.length === 0) {
@@ -108,7 +111,7 @@ router.post("/", async (req, res) => {
   } finally {
     // Log every hit - real message, test payload, or failed signature check -
     // so the admin "Webhook Log" page always has something to show.
-    await logWebhookEvent({ platform: "instagram", payload: req.body, signatureValid, messageCount, errorMessage });
+    await logWebhookEvent({ platform: "instagram", payload, signatureValid, messageCount, errorMessage });
   }
 });
 

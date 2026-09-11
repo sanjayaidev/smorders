@@ -19,7 +19,11 @@ export async function logWebhookEvent({ platform, payload, signatureValid, messa
       is_test: (messageCount ?? 0) === 0,
       error_message: errorMessage ?? null,
     });
-    if (error) console.error(`[webhookLog] Failed to insert ${platform} webhook event:`, error.message);
+    if (error) {
+      console.error(`[webhookLog] Failed to insert ${platform} webhook event:`, error.message);
+    } else {
+      console.info(`[webhookLog] Stored ${platform} webhook event (${messageCount ?? 0} message(s), ${(messageCount ?? 0) === 0 ? "test/status" : "message"})`);
+    }
   } catch (err) {
     console.error(`[webhookLog] Unexpected error logging ${platform} webhook event:`, err.message);
   }

@@ -3,6 +3,7 @@ import { verifyWhatsAppSignature } from "../lib/whatsapp.js";
 import { getWaConnection } from "../lib/waConnection.js";
 import { handleIncomingMessage } from "../lib/waBot.js";
 import { logWebhookEvent } from "../lib/webhookLog.js";
+import { parseMetaWebhookBody } from "../middleware/metaWebhookBody.js";
 
 const router = Router();
 
@@ -35,9 +36,10 @@ router.get("/", async (req, res) => {
  * rather than surfaced as a failed response.
  */
 router.post("/", async (req, res) => {
+  const payload = parseMetaWebhookBody(req);
   // Log webhook reception for testing/debugging
   console.log("[WhatsApp Webhook] Received webhook at:", new Date().toISOString());
-  console.log("[WhatsApp Webhook] Raw body:", JSON.stringify(req.body, null, 2));
+  console.log("[WhatsApp Webhook] Raw body:", JSON.stringify(payload, null, 2));
   console.log("[WhatsApp Webhook] Headers:", JSON.stringify({
     'x-hub-signature-256': req.headers['x-hub-signature-256'] ? '[present]' : '[missing]',
     'content-type': req.headers['content-type']
@@ -63,7 +65,8 @@ router.post("/", async (req, res) => {
 
     console.log("[WhatsApp Webhook] Signature verified successfully");
 
-    const entries = req.body?.entry || [];
+    if (!payload) throw new Error("Invalid JSON webhook payload.");
+    const entries = payload.entry || [];
     console.log(`[WhatsApp Webhook] Processing ${entries.length} entry/entries`);
 
     if (entries.length === 0) {
@@ -114,7 +117,7 @@ router.post("/", async (req, res) => {
   } finally {
     // Log every hit - real message, test payload, or failed signature check -
     // so the admin "Webhook Log" page always has something to show.
-    await logWebhookEvent({ platform: "whatsapp", payload: req.body, signatureValid, messageCount, errorMessage });
+    await logWebhookEvent({ platform: "whatsapp", payload, signatureValid, messageCount, errorMessage });
   }
 });
 

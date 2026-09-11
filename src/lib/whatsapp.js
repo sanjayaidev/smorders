@@ -89,6 +89,7 @@ export async function verifyWhatsAppSignature(rawBody, signatureHeader) {
     return true;
   }
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
+  if (!Buffer.isBuffer(rawBody)) return false;
 
   const expected = createHmac("sha256", appSecret).update(rawBody).digest("hex");
   const provided = signatureHeader.slice("sha256=".length);

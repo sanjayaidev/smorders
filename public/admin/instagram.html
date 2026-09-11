@@ -363,6 +363,16 @@
         }
       }
 
+      async function loginWithInstagram() {
+        setError("");
+        try {
+          const data = await api("/api/admin/instagram/auth-url");
+          window.location.href = data.url;
+        } catch (err) {
+          setError(err.message);
+        }
+      }
+
       if (loading) return <div className="py-16 flex justify-center"><Loader2 className="animate-spin" style={{ color: C.inkSoft }} /></div>;
 
       return (
@@ -391,6 +401,11 @@
             <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
               Paste your Instagram profile URL (e.g. instagram.com/simit_astana) and a Facebook Page access token from Meta's App dashboard for the Page linked to that Instagram professional account. We'll confirm the match before connecting.
             </p>
+
+            <button onClick={loginWithInstagram} className="mb-4 rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: C.ink, color: C.bg }}>
+              Log in with Instagram
+            </button>
+            <p className="text-xs mb-4" style={{ color: C.inkSoft }}>Or connect manually with a Page access token below.</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <div>
