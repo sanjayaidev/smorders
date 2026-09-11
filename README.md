@@ -77,7 +77,7 @@ Manual connection values can be configured through the admin Instagram page. The
 | `FACEBOOK_APP_SECRET` | Fallback OAuth app secret |
 | `APP_BASE_URL` | Public base URL used to build the OAuth callback URL |
 
-For production OAuth, set `APP_BASE_URL` explicitly, for example `https://orders.example.com`.
+For production OAuth, set `APP_BASE_URL` to `https://smorder.up.railway.app`.
 
 ### Optional services
 
@@ -103,8 +103,8 @@ Use either the reference-compatible paths or the existing paths:
 
 | Channel | Recommended callback URL |
 | --- | --- |
-| WhatsApp | `https://your-domain.com/webhooks/whatsapp` |
-| Instagram | `https://your-domain.com/webhooks/instagram` |
+| WhatsApp | `https://smorder.up.railway.app/webhooks/whatsapp` |
+| Instagram | `https://smorder.up.railway.app/webhooks/instagram` |
 
 The old `/api/whatsapp/webhook` and `/api/instagram/webhook` paths remain supported.
 
@@ -118,7 +118,7 @@ Webhook POSTs are acknowledged immediately with `200 OK`, then processed and log
 2. Set `APP_BASE_URL` to the public site URL.
 3. Add this exact callback URL to the Meta app:
 
-   `https://your-domain.com/api/auth/instagram/callback`
+   `https://smorder.up.railway.app/api/auth/instagram/callback`
 
 4. Open `/admin/instagram.html`, sign in with `ADMIN_PASS`, and choose **Log in with Instagram**.
 
