@@ -66,9 +66,9 @@ Manual connection values can be configured through the admin Instagram page. The
 
 | Variable | Purpose |
 | --- | --- |
-| `INSTAGRAM_PAGE_ID` | Facebook Page ID used to send Instagram DMs |
+| `INSTAGRAM_PAGE_ID` | Optional Facebook Page ID for manual Page-token connections |
 | `INSTAGRAM_USER_ID` | Instagram professional account ID |
-| `INSTAGRAM_TOKEN` | Page access token used to send messages |
+| `INSTAGRAM_TOKEN` | Instagram user token used to send messages |
 | `INSTAGRAM_APP_SECRET` | Meta app secret used to validate webhook signatures and Instagram OAuth login |
 | `INSTAGRAM_APP_ID` | Meta app ID used by Instagram OAuth login |
 | `IG_APP_ID` | Alternative OAuth app ID name |
@@ -112,7 +112,7 @@ Set the corresponding verify token in Meta. Subscribe to the message field for t
 
 Webhook POSTs are acknowledged immediately with `200 OK`, then processed and logged. A payload with no messages is marked `is_test: true` in `webhook_events`; this includes Meta's Test button and status-only events.
 
-## Instagram OAuth login
+## Instagram Business Login
 
 1. Set `INSTAGRAM_APP_ID` and `INSTAGRAM_APP_SECRET` (or the documented aliases).
 2. Set `APP_BASE_URL` to the public site URL.
@@ -122,7 +122,7 @@ Webhook POSTs are acknowledged immediately with `200 OK`, then processed and log
 
 4. Open `/admin/instagram.html`, sign in with `ADMIN_PASS`, and choose **Log in with Instagram**.
 
-The protected endpoint `GET /api/admin/instagram/auth-url` creates the signed OAuth state. The public callback exchanges the code, finds the first Facebook Page linked to an Instagram professional account, and saves that connection in `ig_connection`.
+The protected endpoint `GET /api/admin/instagram/auth-url` creates the signed Instagram OAuth URL with the `instagram_business_basic` and `instagram_business_manage_messages` permissions. The public callback exchanges the code at Instagram, upgrades it to a long-lived token, fetches the business profile, and saves that connection in `ig_connection`.
 
 ## Admin pages and API
 

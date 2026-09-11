@@ -2,15 +2,16 @@ import { createHmac, timingSafeEqual } from "crypto";
 import "dotenv/config";
 import { getIgConnection } from "./igConnection.js";
 
-const API_VERSION = process.env.WHATSAPP_API_VERSION || "v21.0"; // same Graph API, same version pin as WhatsApp
-
 async function callGraph(body) {
-  const { pageId, accessToken } = await getIgConnection();
-  if (!pageId || !accessToken) {
+  const { pageId, igUserId, accessToken } = await getIgConnection();
+  if ((!pageId && !igUserId) || !accessToken) {
     throw new Error("Instagram isn't connected yet - set it up in the admin Instagram DM page.");
   }
 
-  const res = await fetch(`https://graph.facebook.com/${API_VERSION}/${pageId}/messages`, {
+  const endpoint = pageId
+    ? `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || "v21.0"}/${pageId}/messages`
+    : `https://graph.instagram.com/${igUserId}/messages`;
+  const res = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

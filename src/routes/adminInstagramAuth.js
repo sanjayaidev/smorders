@@ -3,7 +3,6 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { supabase } from "../supabaseClient.js";
 import { invalidateIgConnectionCache } from "../lib/igConnection.js";
 
-const API_VERSION = process.env.WHATSAPP_API_VERSION || "v21.0";
 const router = Router();
 const callbackRouter = Router();
 
@@ -51,9 +50,9 @@ router.get("/auth-url", (req, res) => {
     redirect_uri: redirectUri,
     state: makeState(redirectUri),
     response_type: "code",
-    scope: "pages_show_list,pages_manage_metadata,pages_messaging,instagram_basic,instagram_manage_messages",
+    scope: "instagram_business_basic,instagram_business_manage_messages",
   });
-  res.json({ url: `https://www.facebook.com/${API_VERSION}/dialog/oauth?${params}` });
+  res.json({ url: `https://www.instagram.com/oauth/authorize?${params}` });
 });
 
 callbackRouter.get("/callback", async (req, res) => {
@@ -70,23 +69,36 @@ callbackRouter.get("/callback", async (req, res) => {
       redirect_uri: state.redirectUri,
       code: req.query.code,
     });
-    const tokenRes = await fetch(`https://graph.facebook.com/${API_VERSION}/oauth/access_token?${tokenParams}`);
+    const tokenRes = await fetch("https://api.instagram.com/oauth/access_token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: tokenParams,
+    });
     const tokenPayload = await tokenRes.json().catch(() => null);
     if (!tokenRes.ok || !tokenPayload?.access_token) throw new Error(tokenPayload?.error?.message || "Meta token exchange failed.");
 
-    const accountsRes = await fetch(`https://graph.facebook.com/${API_VERSION}/me/accounts?fields=id,name,access_token,instagram_business_account{id,username}`, {
-      headers: { Authorization: `Bearer ${tokenPayload.access_token}` },
+    const longLivedParams = new URLSearchParams({
+      grant_type: "ig_exchange_token",
+      client_secret: appSecret,
+      access_token: tokenPayload.access_token,
     });
-    const accountsPayload = await accountsRes.json().catch(() => null);
-    const account = (accountsPayload?.data || []).find((item) => item.instagram_business_account);
-    if (!accountsRes.ok || !account) throw new Error("No Facebook Page with a linked Instagram professional account was found.");
+    const longLivedRes = await fetch(`https://graph.instagram.com/access_token?${longLivedParams}`);
+    const longLivedPayload = await longLivedRes.json().catch(() => null);
+    if (!longLivedRes.ok || !longLivedPayload?.access_token) {
+      throw new Error(longLivedPayload?.error?.message || "Instagram long-lived token exchange failed.");
+    }
 
-    const pageToken = account.access_token || tokenPayload.access_token;
+    const profileRes = await fetch("https://graph.instagram.com/me?fields=user_id,username", {
+      headers: { Authorization: `Bearer ${longLivedPayload.access_token}` },
+    });
+    const profile = await profileRes.json().catch(() => null);
+    if (!profileRes.ok || !profile?.user_id) throw new Error(profile?.error?.message || "Instagram business profile lookup failed.");
+
     const { error } = await supabase.from("ig_connection").update({
-      page_id: account.id,
-      ig_user_id: account.instagram_business_account.id,
-      ig_username: account.instagram_business_account.username || null,
-      access_token: pageToken,
+      page_id: null,
+      ig_user_id: profile.user_id,
+      ig_username: profile.username || null,
+      access_token: longLivedPayload.access_token,
       app_secret: appSecret,
       updated_at: new Date().toISOString(),
     }).eq("id", 1);
