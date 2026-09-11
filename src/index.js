@@ -20,6 +20,7 @@ import instagramWebhookRouter from "./routes/instagramWebhook.js";
 import adminInstagramSettingsRouter from "./routes/adminInstagramSettings.js";
 import adminInstagramKeywordsRouter from "./routes/adminInstagramKeywords.js";
 import adminInstagramConnectionRouter from "./routes/adminInstagramConnection.js";
+import adminWebhookEventsRouter from "./routes/adminWebhookEvents.js";
 import { sendPendingFollowups } from "./lib/waBot.js";
 import { sendPendingIgFollowups } from "./lib/igBot.js";
 
@@ -54,6 +55,7 @@ app.use("/api/admin/whatsapp/connection", adminAuth, adminWhatsappConnectionRout
 app.use("/api/admin/instagram/settings", adminAuth, adminInstagramSettingsRouter);
 app.use("/api/admin/instagram/keywords", adminAuth, adminInstagramKeywordsRouter);
 app.use("/api/admin/instagram/connection", adminAuth, adminInstagramConnectionRouter);
+app.use("/api/admin/webhook-events", adminAuth, adminWebhookEventsRouter);
 
 // Meta's webhook - no adminAuth (Meta can't send our admin password), it's
 // gated instead by the verify token (GET) and X-Hub-Signature-256 (POST).

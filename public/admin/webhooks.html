@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simit Astana — Webhook Log</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+      "lucide-react": "https://esm.sh/lucide-react@0.263.1"
+    }
+  }
+  </script>
+</head>
+<body class="m-0 p-0 bg-[#F4F1EA]">
+  <div id="root"></div>
+
+  <script type="text/babel" data-type="module">
+    import React, { useState, useEffect, useCallback, useRef } from "react";
+    import { createRoot } from "react-dom/client";
+    import {
+      Lock, LogOut, Webhook, RefreshCw, Trash2, ChevronDown, ChevronRight,
+      CheckCircle2, XCircle, ShieldAlert, Clock3, Instagram, MessageCircle,
+      FlaskConical, Pause, Play,
+    } from "lucide-react";
+
+    /* ---------------------------------------------------------------------------
+       Webhook Log: every inbound POST Meta ever sent to /api/whatsapp/webhook or
+       /api/instagram/webhook, whether it was a real customer message, a status-
+       only update, or a "Test" payload sent from the App Dashboard. Backed by
+       the webhook_events table (see supabase/migrations/20260911_webhook_events.sql)
+       - same auth pattern as the other admin pages.
+    --------------------------------------------------------------------------- */
+
+    const C = {
+      bg: "#F4F1EA", ink: "#241C15", inkSoft: "#6B5F4F", accent: "#E7A93C",
+      accentDark: "#B9821F", brick: "#AE3B26", olive: "#5C6B35",
+      surface: "#FFFFFF", border: "#E6DBC8", chip: "#F2E8D6",
+    };
+    const sans = { fontFamily: "'Inter', system-ui, sans-serif" };
+    const serif = { fontFamily: "'Fraunces', 'Georgia', serif" };
+    const TOKEN_KEY = "simit_admin_token";
+    const POLL_MS = 5000;
+
+    /* ------------------------------- API helper ------------------------------- */
+    function useApi(token, onUnauthorized) {
+      return useCallback(
+        async (path, options = {}) => {
+          const res = await fetch(path, {
+            ...options,
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              ...(options.headers || {}),
+            },
+          });
+          if (res.status === 401) {
+            onUnauthorized();
+            throw new Error("Unauthorized");
+          }
+          if (res.status === 204) return null;
+          const data = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+          return data;
+        },
+        [token, onUnauthorized]
+      );
+    }
+
+    /* -------------------------------- Login ----------------------------------- */
+    function LoginScreen({ onLoggedIn }) {
+      const [password, setPassword] = useState("");
+      const [error, setError] = useState("");
+      const [loading, setLoading] = useState(false);
+
+      async function submit(e) {
+        e.preventDefault();
+        setLoading(true);
+        setError("");
+        try {
+          const res = await fetch("/api/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Incorrect password.");
+          onLoggedIn(data.token);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      return (
+        <div className="min-h-screen flex items-center justify-center px-4" style={{ background: C.bg, ...sans }}>
+          <form onSubmit={submit} className="w-full max-w-sm rounded-2xl p-8" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center mb-4" style={{ background: C.chip }}>
+              <Lock size={20} style={{ color: C.accentDark }} />
+            </div>
+            <h1 className="text-xl mb-1" style={{ ...serif, color: C.ink, fontWeight: 600 }}>Webhook Log</h1>
+            <p className="text-sm mb-5" style={{ color: C.inkSoft }}>Enter the staff password to continue.</p>
+            <input
+              type="password"
+              autoFocus
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              className="w-full rounded-lg px-3 py-2.5 text-sm mb-3 outline-none"
+              style={{ border: `1px solid ${C.border}`, color: C.ink }}
+            />
+            {error && <p className="text-sm mb-3" style={{ color: C.brick }}>{error}</p>}
+            <button
+              type="submit"
+              disabled={loading || !password}
+              className="w-full rounded-lg py-2.5 text-sm font-semibold disabled:opacity-50"
+              style={{ background: C.ink, color: C.bg }}
+            >
+              {loading ? "Checking…" : "Sign in"}
+            </button>
+          </form>
+        </div>
+      );
+    }
+
+    /* ------------------------------ Small pieces ------------------------------- */
+    function Pill({ children, tone = "neutral" }) {
+      const tones = {
+        neutral: { background: C.chip, color: C.inkSoft },
+        good: { background: "#E4EBD6", color: C.olive },
+        bad: { background: "#F4DCD5", color: C.brick },
+        warn: { background: "#FBEACB", color: C.accentDark },
+      };
+      return (
+        <span className="text-xs font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1" style={tones[tone]}>
+          {children}
+        </span>
+      );
+    }
+
+    function timeAgo(iso) {
+      const diffMs = Date.now() - new Date(iso).getTime();
+      const sec = Math.round(diffMs / 1000);
+      if (sec < 5) return "just now";
+      if (sec < 60) return `${sec}s ago`;
+      const min = Math.round(sec / 60);
+      if (min < 60) return `${min}m ago`;
+      const hr = Math.round(min / 60);
+      if (hr < 24) return `${hr}h ago`;
+      return new Date(iso).toLocaleString();
+    }
+
+    function SignaturePill({ value }) {
+      if (value === true) return <Pill tone="good"><CheckCircle2 size={12} /> Verified</Pill>;
+      if (value === false) return <Pill tone="bad"><XCircle size={12} /> Failed</Pill>;
+      return <Pill tone="warn"><ShieldAlert size={12} /> No app secret</Pill>;
+    }
+
+    /* -------------------------------- Event row --------------------------------- */
+    function EventRow({ event }) {
+      const [open, setOpen] = useState(false);
+      const isIg = event.platform === "instagram";
+      const PlatformIcon = isIg ? Instagram : MessageCircle;
+
+      return (
+        <div className="rounded-xl mb-2" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+          <button
+            onClick={() => setOpen((o) => !o)}
+            className="w-full flex items-center gap-3 px-4 py-3 text-left"
+          >
+            {open ? <ChevronDown size={16} style={{ color: C.inkSoft }} /> : <ChevronRight size={16} style={{ color: C.inkSoft }} />}
+            <PlatformIcon size={16} style={{ color: isIg ? "#C13584" : C.olive }} className="shrink-0" />
+            <span className="text-sm font-medium capitalize" style={{ color: C.ink }}>{event.platform}</span>
+
+            {event.is_test ? (
+              <Pill tone="neutral"><FlaskConical size={12} /> Test / no messages</Pill>
+            ) : (
+              <Pill tone="good">{event.message_count} message{event.message_count === 1 ? "" : "s"}</Pill>
+            )}
+            <SignaturePill value={event.signature_valid} />
+            {event.error_message && <Pill tone="bad">Error</Pill>}
+
+            <span className="ml-auto text-xs flex items-center gap-1 shrink-0" style={{ color: C.inkSoft }}>
+              <Clock3 size={12} /> {timeAgo(event.created_at)}
+            </span>
+          </button>
+
+          {open && (
+            <div className="px-4 pb-4">
+              {event.error_message && (
+                <p className="text-xs mb-2 px-3 py-2 rounded-lg" style={{ background: "#F4DCD5", color: C.brick }}>
+                  {event.error_message}
+                </p>
+              )}
+              <pre
+                className="text-xs rounded-lg p-3 overflow-auto"
+                style={{ background: C.bg, border: `1px solid ${C.border}`, color: C.ink, maxHeight: 320 }}
+              >
+                {JSON.stringify(event.payload, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ---------------------------------- Page ------------------------------------ */
+    function WebhookLogPage({ token, onUnauthorized }) {
+      const api = useApi(token, onUnauthorized);
+      const [platform, setPlatform] = useState("all");
+      const [events, setEvents] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState("");
+      const [live, setLive] = useState(true);
+      const [clearing, setClearing] = useState(false);
+      const timerRef = useRef(null);
+
+      const load = useCallback(
+        async (showSpinner = false) => {
+          if (showSpinner) setLoading(true);
+          try {
+            const qs = platform === "all" ? "" : `?platform=${platform}`;
+            const data = await api(`/api/admin/webhook-events${qs}`);
+            setEvents(data.events || []);
+            setError("");
+          } catch (err) {
+            if (err.message !== "Unauthorized") setError(err.message);
+          } finally {
+            setLoading(false);
+          }
+        },
+        [api, platform]
+      );
+
+      useEffect(() => {
+        load(true);
+      }, [load]);
+
+      useEffect(() => {
+        if (!live) return undefined;
+        timerRef.current = setInterval(() => load(false), POLL_MS);
+        return () => clearInterval(timerRef.current);
+      }, [live, load]);
+
+      async function clearLog() {
+        if (!confirm("Clear the entire webhook log? This can't be undone.")) return;
+        setClearing(true);
+        try {
+          await api("/api/admin/webhook-events", { method: "DELETE" });
+          setEvents([]);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setClearing(false);
+        }
+      }
+
+      const filters = [
+        { key: "all", label: "All" },
+        { key: "whatsapp", label: "WhatsApp" },
+        { key: "instagram", label: "Instagram" },
+      ];
+
+      return (
+        <main className="p-5 max-w-4xl mx-auto">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            {filters.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setPlatform(f.key)}
+                className="text-sm font-medium px-3 py-1.5 rounded-lg"
+                style={{
+                  background: platform === f.key ? C.ink : C.surface,
+                  color: platform === f.key ? C.bg : C.inkSoft,
+                  border: `1px solid ${platform === f.key ? C.ink : C.border}`,
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => setLive((l) => !l)}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg"
+                style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}
+                title={live ? "Pause auto-refresh" : "Resume auto-refresh"}
+              >
+                {live ? <Pause size={14} /> : <Play size={14} />}
+                {live ? "Live" : "Paused"}
+              </button>
+              <button
+                onClick={() => load(true)}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg"
+                style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}
+              >
+                <RefreshCw size={14} /> Refresh
+              </button>
+              <button
+                onClick={clearLog}
+                disabled={clearing || events.length === 0}
+                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg disabled:opacity-50"
+                style={{ color: C.brick, border: `1px solid ${C.border}` }}
+              >
+                <Trash2 size={14} /> Clear
+              </button>
+            </div>
+          </div>
+
+          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+            Every POST Meta sends to either webhook lands here first, whether it's a real customer message, a delivery/read
+            status update, or a "Test" payload from the App Dashboard — even ones that fail signature verification. Newest first.
+          </p>
+
+          {error && (
+            <p className="text-sm mb-3 px-3 py-2 rounded-lg" style={{ background: "#F4DCD5", color: C.brick }}>{error}</p>
+          )}
+
+          {loading ? (
+            <p className="text-sm" style={{ color: C.inkSoft }}>Loading…</p>
+          ) : events.length === 0 ? (
+            <div className="rounded-2xl p-8 text-center" style={{ background: C.surface, border: `1px solid ${C.border}` }}>
+              <Webhook size={22} style={{ color: C.inkSoft }} className="mx-auto mb-2" />
+              <p className="text-sm" style={{ color: C.inkSoft }}>
+                Nothing received yet. Send a test from the Meta App Dashboard and it'll show up here within a few seconds.
+              </p>
+            </div>
+          ) : (
+            events.map((e) => <EventRow key={e.id} event={e} />)
+          )}
+        </main>
+      );
+    }
+
+    /* -------------------------------- Shell ------------------------------------ */
+    function App() {
+      const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY));
+
+      function handleLoggedIn(t) {
+        sessionStorage.setItem(TOKEN_KEY, t);
+        setToken(t);
+      }
+      const handleUnauthorized = useCallback(() => {
+        sessionStorage.removeItem(TOKEN_KEY);
+        setToken(null);
+      }, []);
+      function logout() {
+        sessionStorage.removeItem(TOKEN_KEY);
+        setToken(null);
+      }
+
+      if (!token) return <LoginScreen onLoggedIn={handleLoggedIn} />;
+
+      return (
+        <div className="min-h-screen" style={{ background: C.bg, ...sans }}>
+          <header className="sticky top-0 z-20 px-5 py-3 flex items-center justify-between" style={{ background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+            <div className="flex items-center gap-2">
+              <Webhook size={18} style={{ color: C.olive }} />
+              <span style={{ ...serif, color: C.ink, fontWeight: 700, fontSize: 18 }}>Simit Astana</span>
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.chip, color: C.accentDark }}>Webhook Log</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <a href="/admin/whatsapp.html" className="text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+                WhatsApp Bot
+              </a>
+              <a href="/admin/instagram.html" className="text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+                Instagram Bot
+              </a>
+              <a href="/admin/index.html" className="text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+                ← Main admin
+              </a>
+              <button onClick={logout} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg" style={{ color: C.inkSoft, border: `1px solid ${C.border}` }}>
+                <LogOut size={14} /> Log out
+              </button>
+            </div>
+          </header>
+
+          <WebhookLogPage token={token} onUnauthorized={handleUnauthorized} />
+        </div>
+      );
+    }
+
+    createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

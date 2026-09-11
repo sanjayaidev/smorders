@@ -2,6 +2,7 @@ import { Router } from "express";
 import { verifyInstagramSignature } from "../lib/instagram.js";
 import { getIgConnection } from "../lib/igConnection.js";
 import { handleIncomingMessage } from "../lib/igBot.js";
+import { logWebhookEvent } from "../lib/webhookLog.js";
 
 const router = Router();
 
@@ -44,14 +45,20 @@ router.post("/", async (req, res) => {
 
   res.sendStatus(200); // ack immediately; process after responding
 
+  let signatureValid = null;
+  let messageCount = 0;
+  let errorMessage = null;
+
   try {
     const signatureCheck = await verifyInstagramSignature(req.rawBody, req.headers["x-hub-signature-256"]);
+    signatureValid = Boolean(signatureCheck);
     if (!signatureCheck) {
       console.error("[Instagram Webhook] Signature verification failed, dropping payload.");
       return;
     }
     if (signatureCheck === true && !(await getIgConnection()).appSecret) {
       console.log("[Instagram Webhook] App Secret not configured - skipping signature verification (warning: insecure for production)");
+      signatureValid = null; // wasn't actually checked, don't record it as "valid"
     }
 
     console.log("[Instagram Webhook] Signature verified successfully");
@@ -90,12 +97,18 @@ router.post("/", async (req, res) => {
         }
 
         console.log(`[Instagram Webhook] Processing message from senderId=${senderId}, text="${text}", buttonId=${buttonId}`);
+        messageCount++;
         await handleIncomingMessage({ senderId, profileName: null, text, buttonId, igMessageId });
       }
     }
     console.log("[Instagram Webhook] Successfully processed all entries");
   } catch (err) {
+    errorMessage = err.message;
     console.error("[Instagram Webhook] Processing error:", err);
+  } finally {
+    // Log every hit - real message, test payload, or failed signature check -
+    // so the admin "Webhook Log" page always has something to show.
+    await logWebhookEvent({ platform: "instagram", payload: req.body, signatureValid, messageCount, errorMessage });
   }
 });
 

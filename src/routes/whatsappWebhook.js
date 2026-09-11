@@ -2,6 +2,7 @@ import { Router } from "express";
 import { verifyWhatsAppSignature } from "../lib/whatsapp.js";
 import { getWaConnection } from "../lib/waConnection.js";
 import { handleIncomingMessage } from "../lib/waBot.js";
+import { logWebhookEvent } from "../lib/webhookLog.js";
 
 const router = Router();
 
@@ -44,14 +45,20 @@ router.post("/", async (req, res) => {
 
   res.sendStatus(200); // ack immediately; process after responding
 
+  let signatureValid = null;
+  let messageCount = 0;
+  let errorMessage = null;
+
   try {
     const signatureCheck = await verifyWhatsAppSignature(req.rawBody, req.headers["x-hub-signature-256"]);
+    signatureValid = Boolean(signatureCheck);
     if (!signatureCheck) {
       console.error("[WhatsApp Webhook] Signature verification failed, dropping payload.");
       return;
     }
     if (signatureCheck === true && !(await getWaConnection()).appSecret) {
       console.log("[WhatsApp Webhook] App Secret not configured - skipping signature verification (warning: insecure for production)");
+      signatureValid = null; // wasn't actually checked, don't record it as "valid"
     }
 
     console.log("[WhatsApp Webhook] Signature verified successfully");
@@ -90,6 +97,7 @@ router.post("/", async (req, res) => {
           }
 
           console.log(`[WhatsApp Webhook] Processing message from phoneNumber=${phoneNumber}, profileName=${profileName}, text="${text}", buttonId=${buttonId}`);
+          messageCount++;
           await handleIncomingMessage({ phoneNumber, profileName, text, buttonId, waMessageId });
         }
         
@@ -101,7 +109,12 @@ router.post("/", async (req, res) => {
     }
     console.log("[WhatsApp Webhook] Successfully processed all entries");
   } catch (err) {
+    errorMessage = err.message;
     console.error("[WhatsApp Webhook] Processing error:", err);
+  } finally {
+    // Log every hit - real message, test payload, or failed signature check -
+    // so the admin "Webhook Log" page always has something to show.
+    await logWebhookEvent({ platform: "whatsapp", payload: req.body, signatureValid, messageCount, errorMessage });
   }
 });
 
