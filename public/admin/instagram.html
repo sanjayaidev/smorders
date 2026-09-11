@@ -285,7 +285,8 @@
       const api = useApi(token, onUnauthorized);
       const [connection, setConnection] = useState(null);
       const [loading, setLoading] = useState(true);
-      const [error, setError] = useState("");
+      const oauthReason = new URLSearchParams(window.location.search).get("reason");
+      const [error, setError] = useState(oauthReason ? `Instagram login failed: ${oauthReason}` : "");
 
       // Form state for (re)connecting.
       const [instagramUrl, setInstagramUrl] = useState("");

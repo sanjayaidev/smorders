@@ -40,6 +40,15 @@ function baseUrl(req) {
   return (process.env.APP_BASE_URL || `${forwardedProto || req.protocol}://${req.get("host")}`).replace(/\/$/, "");
 }
 
+function errorMessage(payload, fallback) {
+  return payload?.error?.message || payload?.error_message || payload?.message || fallback;
+}
+
+function errorRedirect(returnUrl, reason) {
+  const safeReason = String(reason || "Instagram OAuth failed").slice(0, 180);
+  return `${returnUrl}?instagramAuth=error&reason=${encodeURIComponent(safeReason)}`;
+}
+
 router.get("/auth-url", (req, res) => {
   const { appId } = config();
   if (!appId || !config().appSecret) {
@@ -58,7 +67,12 @@ router.get("/auth-url", (req, res) => {
 });
 
 callbackRouter.get("/callback", async (req, res) => {
-  const state = readState(req.query.state);
+  let state;
+  try {
+    state = readState(req.query.state);
+  } catch {
+    state = null;
+  }
   const returnUrl = "/admin/instagram.html";
   if (!state) return res.redirect(`${returnUrl}?instagramAuth=invalid_state`);
   if (req.query.error || !req.query.code) return res.redirect(`${returnUrl}?instagramAuth=cancelled`);
@@ -77,7 +91,7 @@ callbackRouter.get("/callback", async (req, res) => {
       body: tokenParams,
     });
     const tokenPayload = await tokenRes.json().catch(() => null);
-    if (!tokenRes.ok || !tokenPayload?.access_token) throw new Error(tokenPayload?.error?.message || "Meta token exchange failed.");
+    if (!tokenRes.ok || !tokenPayload?.access_token) throw new Error(errorMessage(tokenPayload, "Meta token exchange failed."));
 
     const longLivedParams = new URLSearchParams({
       grant_type: "ig_exchange_token",
@@ -87,18 +101,19 @@ callbackRouter.get("/callback", async (req, res) => {
     const longLivedRes = await fetch(`https://graph.instagram.com/access_token?${longLivedParams}`);
     const longLivedPayload = await longLivedRes.json().catch(() => null);
     if (!longLivedRes.ok || !longLivedPayload?.access_token) {
-      throw new Error(longLivedPayload?.error?.message || "Instagram long-lived token exchange failed.");
+      throw new Error(errorMessage(longLivedPayload, "Instagram long-lived token exchange failed."));
     }
 
-    const profileRes = await fetch("https://graph.instagram.com/me?fields=user_id,username", {
+    const profileRes = await fetch("https://graph.instagram.com/me?fields=id,user_id,username", {
       headers: { Authorization: `Bearer ${longLivedPayload.access_token}` },
     });
     const profile = await profileRes.json().catch(() => null);
-    if (!profileRes.ok || !profile?.user_id) throw new Error(profile?.error?.message || "Instagram business profile lookup failed.");
+    const igUserId = profile?.user_id || profile?.id;
+    if (!profileRes.ok || !igUserId) throw new Error(errorMessage(profile, "Instagram business profile lookup failed."));
 
     const { error } = await supabase.from("ig_connection").update({
       page_id: null,
-      ig_user_id: profile.user_id,
+      ig_user_id: igUserId,
       ig_username: profile.username || null,
       access_token: longLivedPayload.access_token,
       app_secret: appSecret,
@@ -107,7 +122,7 @@ callbackRouter.get("/callback", async (req, res) => {
     if (error) throw error;
     invalidateIgConnectionCache();
     try {
-      await subscribeInstagramWebhook(profile.user_id, longLivedPayload.access_token);
+      await subscribeInstagramWebhook(igUserId, longLivedPayload.access_token);
       res.redirect(`${returnUrl}?instagramAuth=connected&instagramWebhook=connected`);
     } catch (subscriptionError) {
       console.error("Instagram webhook subscription failed after OAuth login:", subscriptionError.message);
@@ -115,7 +130,7 @@ callbackRouter.get("/callback", async (req, res) => {
     }
   } catch (err) {
     console.error("Instagram OAuth callback failed:", err.message);
-    res.redirect(`${returnUrl}?instagramAuth=error`);
+    res.redirect(errorRedirect(returnUrl, err.message));
   }
 });
 

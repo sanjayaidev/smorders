@@ -92,13 +92,28 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Simit Astana server listening on port ${PORT}`);
 });
 
 // Checks every minute for WhatsApp/Instagram conversations that have gone
 // quiet mid-order and sends the admin-configured follow-up nudge once each.
-setInterval(() => {
+const followupInterval = setInterval(() => {
   sendPendingFollowups().catch((err) => console.error("sendPendingFollowups crashed:", err));
   sendPendingIgFollowups().catch((err) => console.error("sendPendingIgFollowups crashed:", err));
 }, 60 * 1000);
+
+function shutdown(signal) {
+  console.log(`[server] ${signal} received, shutting down gracefully.`);
+  clearInterval(followupInterval);
+  server.close((error) => {
+    if (error) {
+      console.error("[server] Graceful shutdown failed:", error.message);
+      process.exitCode = 1;
+    }
+    process.exit();
+  });
+}
+
+process.once("SIGTERM", () => shutdown("SIGTERM"));
+process.once("SIGINT", () => shutdown("SIGINT"));
