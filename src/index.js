@@ -27,6 +27,7 @@ import { sendPendingIgFollowups } from "./lib/igBot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+app.set("trust proxy", true);
 
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || "*" }));
 // Meta signatures cover the exact bytes received. Parse these public routes

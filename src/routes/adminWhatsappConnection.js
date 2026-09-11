@@ -1,9 +1,15 @@
 import { Router } from "express";
 import { supabase } from "../supabaseClient.js";
 import { invalidateWaConnectionCache } from "../lib/waConnection.js";
+import { subscribeWhatsAppWebhook } from "../lib/metaSubscriptions.js";
 
 const router = Router();
 const API_VERSION = process.env.WHATSAPP_API_VERSION || "v21.0";
+
+function publicBaseUrl(req) {
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  return (process.env.APP_BASE_URL || `${forwardedProto || req.protocol}://${req.get("host")}`).replace(/\/$/, "");
+}
 
 function maskToken(token) {
   if (!token) return null;
@@ -30,7 +36,7 @@ router.get("/", async (req, res, next) => {
         // The verify token now lives only in WHATSAPP_VERIFY_TOKEN (env) -
         // it's a static shared secret for Meta's webhook config, not
         // something the admin UI needs to display or let anyone change.
-        webhookUrl: `${req.protocol}://${req.get("host")}/api/whatsapp/webhook`,
+        webhookUrl: `${publicBaseUrl(req)}/api/whatsapp/webhook`,
       },
     });
   } catch (err) {
@@ -107,8 +113,17 @@ router.post("/", async (req, res, next) => {
     if (error) throw error;
 
     invalidateWaConnectionCache();
+    let webhookSubscription;
+    try {
+      webhookSubscription = await subscribeWhatsAppWebhook(data.phone_number_id, data.access_token);
+    } catch (subscriptionError) {
+      return res.status(502).json({
+        error: `WhatsApp was saved, but Meta could not subscribe the number to webhooks: ${subscriptionError.message}`,
+      });
+    }
 
     res.json({
+      webhookSubscription,
       connection: {
         wabaId: data.waba_id,
         accessTokenMasked: maskToken(data.access_token),
@@ -116,7 +131,7 @@ router.post("/", async (req, res, next) => {
         appSecretSet: Boolean(data.app_secret),
         phoneNumberId: data.phone_number_id,
         phoneNumberDisplay: data.phone_number_display,
-        webhookUrl: `${req.protocol}://${req.get("host")}/api/whatsapp/webhook`,
+        webhookUrl: `${publicBaseUrl(req)}/api/whatsapp/webhook`,
       },
     });
   } catch (err) {

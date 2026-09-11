@@ -1,9 +1,15 @@
 import { Router } from "express";
 import { supabase } from "../supabaseClient.js";
 import { invalidateIgConnectionCache } from "../lib/igConnection.js";
+import { subscribeInstagramWebhook } from "../lib/metaSubscriptions.js";
 
 const router = Router();
-const API_VERSION = process.env.WHATSAPP_API_VERSION || "v21.0";
+const API_VERSION = process.env.INSTAGRAM_API_VERSION || process.env.WHATSAPP_API_VERSION || "v21.0";
+
+function publicBaseUrl(req) {
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  return (process.env.APP_BASE_URL || `${forwardedProto || req.protocol}://${req.get("host")}`).replace(/\/$/, "");
+}
 
 function maskToken(token) {
   if (!token) return null;
@@ -45,7 +51,7 @@ router.get("/", async (req, res, next) => {
         appSecretSet: Boolean(data.app_secret),
         // Same env-only pattern as WhatsApp's verify token - not stored in
         // the DB, not returned here; see lib/igConnection.js.
-        webhookUrl: `${req.protocol}://${req.get("host")}/api/instagram/webhook`,
+        webhookUrl: `${publicBaseUrl(req)}/api/instagram/webhook`,
       },
     });
   } catch (err) {
@@ -134,8 +140,17 @@ router.post("/", async (req, res, next) => {
     if (error) throw error;
 
     invalidateIgConnectionCache();
+    let webhookSubscription;
+    try {
+      webhookSubscription = await subscribeInstagramWebhook(data.ig_user_id, data.access_token, data.page_id);
+    } catch (subscriptionError) {
+      return res.status(502).json({
+        error: `Instagram was saved, but Meta could not subscribe the account to webhooks: ${subscriptionError.message}`,
+      });
+    }
 
     res.json({
+      webhookSubscription,
       connection: {
         pageId: data.page_id,
         igUserId: data.ig_user_id,
@@ -143,7 +158,7 @@ router.post("/", async (req, res, next) => {
         accessTokenMasked: maskToken(data.access_token),
         hasAccessToken: Boolean(data.access_token),
         appSecretSet: Boolean(data.app_secret),
-        webhookUrl: `${req.protocol}://${req.get("host")}/api/instagram/webhook`,
+        webhookUrl: `${publicBaseUrl(req)}/api/instagram/webhook`,
       },
     });
   } catch (err) {

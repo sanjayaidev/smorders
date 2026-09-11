@@ -11,9 +11,10 @@ import { supabase } from "../supabaseClient.js";
  */
 export async function logWebhookEvent({ platform, payload, signatureValid, messageCount, errorMessage }) {
   try {
+    const storedPayload = payload && typeof payload === "object" ? payload : {};
     const { error } = await supabase.from("webhook_events").insert({
       platform,
-      payload: payload ?? {},
+      payload: storedPayload,
       signature_valid: signatureValid ?? null,
       message_count: messageCount ?? 0,
       is_test: (messageCount ?? 0) === 0,

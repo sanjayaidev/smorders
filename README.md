@@ -71,6 +71,7 @@ Manual connection values can be configured through the admin Instagram page. The
 | `INSTAGRAM_TOKEN` | Instagram user token used to send messages |
 | `INSTAGRAM_APP_SECRET` | Meta app secret used to validate webhook signatures and Instagram OAuth login |
 | `INSTAGRAM_APP_ID` | Meta app ID used by Instagram OAuth login |
+| `INSTAGRAM_API_VERSION` | Instagram Graph API version; defaults to `WHATSAPP_API_VERSION` or `v21.0` |
 | `IG_APP_ID` | Alternative OAuth app ID name |
 | `IG_SECRET` | Alternative OAuth app secret name |
 | `FACEBOOK_APP_ID` | Fallback OAuth app ID |
@@ -122,7 +123,7 @@ Webhook POSTs are acknowledged immediately with `200 OK`, then processed and log
 
 4. Open `/admin/instagram.html`, sign in with `ADMIN_PASS`, and choose **Log in with Instagram**.
 
-The protected endpoint `GET /api/admin/instagram/auth-url` creates the signed Instagram OAuth URL with the `instagram_business_basic` and `instagram_business_manage_messages` permissions. The public callback exchanges the code at Instagram, upgrades it to a long-lived token, fetches the business profile, and saves that connection in `ig_connection`.
+The protected endpoint `GET /api/admin/instagram/auth-url` creates the signed Instagram OAuth URL with the `instagram_business_basic` and `instagram_business_manage_messages` permissions. The public callback exchanges the code at Instagram, upgrades it to a long-lived token, fetches the business profile, saves that connection in `ig_connection`, and subscribes it to the `messages` webhook field automatically.
 
 ## Admin pages and API
 

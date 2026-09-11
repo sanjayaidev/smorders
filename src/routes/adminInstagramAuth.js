@@ -2,6 +2,7 @@ import { Router } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
 import { supabase } from "../supabaseClient.js";
 import { invalidateIgConnectionCache } from "../lib/igConnection.js";
+import { subscribeInstagramWebhook } from "../lib/metaSubscriptions.js";
 
 const router = Router();
 const callbackRouter = Router();
@@ -35,7 +36,8 @@ function readState(state) {
 }
 
 function baseUrl(req) {
-  return (process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  return (process.env.APP_BASE_URL || `${forwardedProto || req.protocol}://${req.get("host")}`).replace(/\/$/, "");
 }
 
 router.get("/auth-url", (req, res) => {
@@ -104,7 +106,13 @@ callbackRouter.get("/callback", async (req, res) => {
     }).eq("id", 1);
     if (error) throw error;
     invalidateIgConnectionCache();
-    res.redirect(`${returnUrl}?instagramAuth=connected`);
+    try {
+      await subscribeInstagramWebhook(profile.user_id, longLivedPayload.access_token);
+      res.redirect(`${returnUrl}?instagramAuth=connected&instagramWebhook=connected`);
+    } catch (subscriptionError) {
+      console.error("Instagram webhook subscription failed after OAuth login:", subscriptionError.message);
+      res.redirect(`${returnUrl}?instagramAuth=connected&instagramWebhook=error`);
+    }
   } catch (err) {
     console.error("Instagram OAuth callback failed:", err.message);
     res.redirect(`${returnUrl}?instagramAuth=error`);

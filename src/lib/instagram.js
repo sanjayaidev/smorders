@@ -9,8 +9,8 @@ async function callGraph(body) {
   }
 
   const endpoint = pageId
-    ? `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || "v21.0"}/${pageId}/messages`
-    : `https://graph.instagram.com/${igUserId}/messages`;
+    ? `https://graph.facebook.com/${process.env.INSTAGRAM_API_VERSION || process.env.WHATSAPP_API_VERSION || "v21.0"}/${igUserId}/messages`
+    : `https://graph.instagram.com/${process.env.INSTAGRAM_API_VERSION || process.env.WHATSAPP_API_VERSION || "v21.0"}/${igUserId}/messages`;
   const res = await fetch(endpoint, {
     method: "POST",
     headers: {
