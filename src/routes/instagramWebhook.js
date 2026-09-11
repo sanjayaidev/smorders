@@ -7,6 +7,24 @@ import { parseMetaWebhookBody } from "../middleware/metaWebhookBody.js";
 
 const router = Router();
 
+function messagingEvents(entry) {
+  const events = Array.isArray(entry.messaging) ? [...entry.messaging] : [];
+  for (const change of entry.changes || []) {
+    const value = change.value || {};
+    // Instagram's test callback and some Graph API versions wrap a DM in
+    // changes[].value instead of entry[].messaging[]. Normalize both forms.
+    if (value.message && (value.sender || value.recipient)) {
+      events.push({
+        sender: value.sender,
+        recipient: value.recipient,
+        timestamp: value.timestamp,
+        message: value.message,
+      });
+    }
+  }
+  return events;
+}
+
 /**
  * GET /api/instagram/webhook
  * Meta's one-time handshake when you save the webhook URL in the App
@@ -74,8 +92,9 @@ router.post("/", async (req, res) => {
     }
 
     for (const entry of entries) {
-      console.log("[Instagram Webhook] Entry ID:", entry.id, "Messaging events:", entry.messaging?.length || 0);
-      for (const event of entry.messaging || []) {
+      const events = messagingEvents(entry);
+      console.log("[Instagram Webhook] Entry ID:", entry.id, "Messaging events:", events.length);
+      for (const event of events) {
         const senderId = event.sender?.id;
         const recipientId = event.recipient?.id;
         console.log("[Instagram Webhook] Event from sender:", senderId, "to recipient:", recipientId, "Message:", event.message ? "present" : "absent");
