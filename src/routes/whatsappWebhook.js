@@ -112,8 +112,15 @@ router.post("/", async (req, res) => {
     }
     console.log("[WhatsApp Webhook] Successfully processed all entries");
   } catch (err) {
-    errorMessage = err.message;
-    console.error("[WhatsApp Webhook] Processing error:", err);
+    const graphError = err.whatsappError;
+    errorMessage = graphError
+      ? `${err.message} [code=${graphError.code ?? "?"}, type=${graphError.type ?? "?"}, subcode=${graphError.error_subcode ?? "?"}]`
+      : err.message;
+    console.error("[WhatsApp Webhook] Processing error:", JSON.stringify({
+      message: err.message,
+      whatsappError: err.whatsappError || null,
+      stack: err.stack,
+    }));
   } finally {
     // Log every hit - real message, test payload, or failed signature check -
     // so the admin "Webhook Log" page always has something to show.

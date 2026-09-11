@@ -36,6 +36,11 @@ async function callGraph(body) {
     const message = payload?.error?.message || `WhatsApp send failed (${res.status})`;
     const err = new Error(message);
     err.whatsappError = payload?.error;
+    console.error("[WhatsApp Graph] Send failed:", JSON.stringify({
+      status: res.status,
+      error: payload?.error || payload,
+      request: { to: body.to, type: body.type, status: body.status },
+    }));
     throw err;
   }
   return payload;
@@ -43,7 +48,9 @@ async function callGraph(body) {
 
 /** Plain text message - the workhorse for almost every bot reply. */
 export function sendWhatsAppText(to, body) {
-  return callGraph({ to, type: "text", text: { body } });
+  const text = String(body ?? "").trim();
+  if (!text) throw new Error("WhatsApp text message cannot be empty.");
+  return callGraph({ to, type: "text", text: { body: text.slice(0, 4096) } });
 }
 
 /**
