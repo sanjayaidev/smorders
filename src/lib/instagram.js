@@ -28,6 +28,12 @@ async function callGraph(body) {
     const message = payload?.error?.message || `Instagram send failed (${res.status})`;
     const err = new Error(message);
     err.instagramError = payload?.error;
+    // Record exactly which host/igUserId this attempt used, so a failure
+    // (e.g. "user cannot be found") can be checked against what was
+    // connected at send time - useful when the connection was changed
+    // (reconnect/resubscribe) around the same time as the failure, since
+    // getIgConnection() caches for 30s and a send can land mid-swap.
+    err.requestContext = { endpoint, igUserId, hadPageId: Boolean(pageId) };
     throw err;
   }
   return payload;

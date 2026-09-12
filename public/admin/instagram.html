@@ -407,7 +407,20 @@
                 <div><span style={{ color: C.inkSoft }}>Instagram account:</span> <span style={{ color: C.ink }}>@{connection.igUsername}</span></div>
                 <div><span style={{ color: C.inkSoft }}>Access token:</span> <span style={{ color: C.ink }}>{connection.accessTokenMasked}</span></div>
                 <div><span style={{ color: C.inkSoft }}>App secret:</span> <span style={{ color: C.ink }}>{connection.appSecretSet ? "set" : "not set"}</span></div>
+                <div>
+                  <span style={{ color: C.inkSoft }}>Sending via:</span>{" "}
+                  <span style={{ color: C.ink }}>
+                    {connection.pageId ? `graph.facebook.com (Page ID ${connection.pageId})` : "graph.instagram.com (Instagram Login)"}
+                  </span>
+                </div>
               </div>
+              {connection.pageId && (
+                <p className="text-xs mt-2" style={{ color: C.brick }}>
+                  A Page ID is saved, so messages send via graph.facebook.com. If you connected using "Log in with
+                  Instagram" (which uses an Instagram User token, not a Page token), this mismatch will cause sends
+                  to fail with "requested user cannot be found." Reconnect with "Log in with Instagram" below to clear it.
+                </p>
+              )}
 
               <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
                 <button
