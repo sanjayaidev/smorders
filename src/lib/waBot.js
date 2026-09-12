@@ -344,9 +344,24 @@ export async function sendPendingFollowups() {
   for (const convo of stale) {
     try {
       await sendWhatsAppText(convo.phone_number, settings.followup_message);
-      await supabase.from("wa_conversations").update({ followup_sent: true }).eq("id", convo.id);
     } catch (err) {
-      console.error(`Follow-up to ${convo.phone_number} failed:`, err.message);
+      // Code 131047 = the 24-hour customer service window closed before we
+      // could send this free-form follow-up; code 190 = access token
+      // invalid/expired. Distinguish them so the log points at the actual
+      // fix (increase urgency / use a template vs. re-auth in admin).
+      const code = err.whatsappError?.code;
+      if (code === 131047) {
+        console.error(
+          `Follow-up to ${convo.phone_number} skipped: the 24-hour customer service window had already closed (consider lowering followup_delay_minutes).`
+        );
+      } else {
+        console.error(`Follow-up to ${convo.phone_number} failed:`, err.message);
+      }
+    } finally {
+      // Mark as sent whether or not it actually went through - this is a
+      // best-effort, once-only nudge, not something we want retried every
+      // minute forever (e.g. while an access token is expired).
+      await supabase.from("wa_conversations").update({ followup_sent: true }).eq("id", convo.id);
     }
   }
 }

@@ -99,6 +99,17 @@ router.post("/", async (req, res) => {
         const recipientId = event.recipient?.id;
         console.log("[Instagram Webhook] Event from sender:", senderId, "to recipient:", recipientId, "Message:", event.message ? "present" : "absent");
         
+        // Button-template taps arrive as a `postback` event (a sibling of
+        // `message` on the messaging entry, not nested inside it) - handle
+        // that shape separately from regular/quick-reply messages.
+        if (event.postback?.payload) {
+          const igMessageId = event.postback.mid || null;
+          console.log(`[Instagram Webhook] Processing postback from senderId=${senderId}, payload=${event.postback.payload}`);
+          messageCount++;
+          await handleIncomingMessage({ senderId, profileName: null, text: "", buttonId: event.postback.payload, igMessageId });
+          continue;
+        }
+
         // Ignore delivery/read receipts and echoes of messages we sent ourselves.
         if (!event.message || event.message.is_echo) {
           console.log("[Instagram Webhook] Skipping non-message or echo event:", JSON.stringify(event));

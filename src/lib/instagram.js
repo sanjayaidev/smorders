@@ -42,6 +42,13 @@ export function sendInstagramText(senderId, text) {
  * Up to 3 quick replies under a text body, mirroring the WhatsApp button
  * flow. Instagram allows up to 13 quick replies and 20 characters per
  * title; we cap at 3 to keep the same UX as WhatsApp's button messages.
+ *
+ * NOTE: kept for reference/tests, but igBot.js uses sendInstagramButtons
+ * instead - quick_replies are ephemeral (Instagram only ever shows them
+ * attached to the single most recent message in the thread, so they vanish
+ * the moment any other message is sent), which made our buttons flicker
+ * away right after the greeting. The button template below doesn't have
+ * that problem since the buttons are part of the message content itself.
  * @param {Array<{id: string, title: string}>} buttons
  */
 export function sendInstagramQuickReplies(senderId, bodyText, buttons) {
@@ -54,6 +61,35 @@ export function sendInstagramQuickReplies(senderId, bodyText, buttons) {
         title: b.title.slice(0, 20),
         payload: b.id,
       })),
+    },
+  });
+}
+
+/**
+ * Button template - up to 3 persistent postback buttons attached to a
+ * message. Unlike quick replies, these stay visible in the thread history
+ * (they're part of the message bubble, not a latest-message-only UI
+ * overlay), so they won't disappear the instant a follow-up message is
+ * sent. Tapping one fires a `messaging_postbacks` webhook event with the
+ * button's payload - see routes/instagramWebhook.js.
+ * @param {Array<{id: string, title: string}>} buttons
+ */
+export function sendInstagramButtons(senderId, bodyText, buttons) {
+  return callGraph({
+    recipient: { id: senderId },
+    message: {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "button",
+          text: bodyText.slice(0, 640),
+          buttons: buttons.slice(0, 3).map((b) => ({
+            type: "postback",
+            title: b.title.slice(0, 20),
+            payload: b.id,
+          })),
+        },
+      },
     },
   });
 }

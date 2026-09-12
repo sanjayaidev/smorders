@@ -1,6 +1,6 @@
 import { supabase } from "../supabaseClient.js";
 import { generateOrderCode } from "./orderCode.js";
-import { sendInstagramText, sendInstagramQuickReplies } from "./instagram.js";
+import { sendInstagramText, sendInstagramButtons } from "./instagram.js";
 import { getActiveMenu, matchItemsWithAI, aiFallbackReply, formatCart, cartTotal } from "./orderMatch.js";
 
 const BUTTON_ORDER = "order";
@@ -83,7 +83,7 @@ async function findKeywordMatch(text) {
 
 async function sendWelcome(conversation, settings) {
   await sendInstagramText(conversation.sender_id, settings.welcome_message);
-  await sendInstagramQuickReplies(conversation.sender_id, "What would you like to do?", [
+  await sendInstagramButtons(conversation.sender_id, "What would you like to do?", [
     { id: BUTTON_ORDER, title: settings.order_button_label },
     { id: BUTTON_LOCATION, title: settings.location_button_label },
     { id: BUTTON_MENU, title: settings.menu_button_label },
@@ -136,9 +136,14 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
   };
 
   // --- Once-a-day welcome ---------------------------------------------
+  // Return immediately after greeting: Instagram only shows quick-reply
+  // buttons on the single most recent message in the thread, so if we kept
+  // going and sent another reply right after (e.g. the AI fallback below),
+  // that next message would instantly make the welcome buttons disappear.
   if (conversation.last_greeted_date !== todayStr()) {
     conversation = await updateConversation(conversation.id, { last_greeted_date: todayStr() });
     await sendWelcome(conversation, settings);
+    return;
   }
 
   const input = (buttonId || text || "").trim();
@@ -235,7 +240,7 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
       }
       await sendInstagramText(senderId, summary);
       await logMessage(conversation.id, "outbound", summary);
-      await sendInstagramQuickReplies(senderId, "Ready to send this to the kitchen?", [
+      await sendInstagramButtons(senderId, "Ready to send this to the kitchen?", [
         { id: BUTTON_CONFIRM, title: "✅ Confirm" },
         { id: BUTTON_MODIFY, title: "✏️ Add / change" },
       ]);
@@ -339,9 +344,13 @@ export async function sendPendingIgFollowups() {
   for (const convo of stale) {
     try {
       await sendInstagramText(convo.sender_id, settings.followup_message);
-      await supabase.from("ig_conversations").update({ followup_sent: true }).eq("id", convo.id);
     } catch (err) {
       console.error(`Instagram follow-up to ${convo.sender_id} failed:`, err.message);
+    } finally {
+      // Mark as sent whether or not it actually went through - this is a
+      // best-effort, once-only nudge, not something we want retried every
+      // minute forever (e.g. while an access token is expired).
+      await supabase.from("ig_conversations").update({ followup_sent: true }).eq("id", convo.id);
     }
   }
 }

@@ -24,7 +24,11 @@ export function subscribeWhatsAppWebhook(wabaId, accessToken) {
 
 /** Subscribes either an Instagram Login user or a Page-linked account. */
 export function subscribeInstagramWebhook(igUserId, accessToken, pageId = null) {
-  const params = new URLSearchParams({ subscribed_fields: "messages" });
+  // "messaging_postbacks" is required in addition to "messages" so that
+  // taps on button-template buttons (sendInstagramButtons) are delivered -
+  // without it Meta silently drops those events instead of calling our
+  // webhook.
+  const params = new URLSearchParams({ subscribed_fields: "messages,messaging_postbacks" });
   const url = pageId
     ? `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${pageId}/subscribed_apps?${params}`
     : `https://graph.instagram.com/${INSTAGRAM_API_VERSION}/${igUserId}/subscribed_apps?${params}`;

@@ -36,8 +36,17 @@ router.put("/", async (req, res, next) => {
     }
     if (patch.followup_delay_minutes !== undefined) {
       const n = parseInt(patch.followup_delay_minutes, 10);
-      if (!Number.isFinite(n) || n < 1) {
-        return res.status(400).json({ error: "followup_delay_minutes must be a positive integer." });
+      // Cap below 24h: the follow-up is sent as a free-form WhatsApp
+      // "service message", which only works inside the 24-hour customer
+      // service window that starts from the user's last message. A delay
+      // at or beyond that window would mean the follow-up always arrives
+      // too late to send and gets rejected (error code 131047) - a
+      // template message would be required instead. 1380 min (23h) leaves
+      // an hour of buffer.
+      if (!Number.isFinite(n) || n < 1 || n > 1380) {
+        return res
+          .status(400)
+          .json({ error: "followup_delay_minutes must be a positive integer no greater than 1380 (23 hours) - beyond that the WhatsApp customer service window will have closed." });
       }
       patch.followup_delay_minutes = n;
     }
