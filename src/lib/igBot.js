@@ -261,6 +261,36 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
           return;
         }
 
+        // Atomically claim this confirmation before creating the order.
+        // This is the actual fix for double-recorded Instagram orders:
+        // "Confirm" is a button-template tap, which arrives as a
+        // `messaging_postbacks` event that often has no `mid` at all, so the
+        // message-id dedupe above (keyed on igMessageId) has nothing to key
+        // on and can't catch Meta redelivering the same tap. This
+        // conditional update only succeeds for whichever delivery gets here
+        // first - it flips stage confirm -> placing_order and returns the
+        // row; a loser sees zero rows matched and bails out below without
+        // ever touching the orders table.
+        const { data: claimed, error: claimError } = await supabase
+          .from("ig_conversations")
+          .update({ stage: "placing_order", last_message_at: new Date().toISOString(), followup_sent: false })
+          .eq("id", conversation.id)
+          .eq("stage", "confirm")
+          .select()
+          .maybeSingle();
+        if (claimError) {
+          console.error("Instagram confirm claim failed:", claimError.message);
+          await reply("Sorry, something went wrong placing that order - please try confirming again.");
+          return;
+        }
+        if (!claimed) {
+          // Already claimed by a near-simultaneous delivery of this same
+          // confirm - that other call is placing (or already placed) the
+          // order, so do nothing here to avoid a duplicate.
+          return;
+        }
+        conversation = claimed;
+
         const { data: order, error: orderError } = await supabase
           .from("orders")
           .insert({
@@ -277,6 +307,8 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
           .single();
         if (orderError) {
           console.error("Instagram order insert failed:", orderError.message);
+          // Release the claim so the customer can retry confirming.
+          await updateConversation(conversation.id, { stage: "confirm" });
           await reply("Sorry, something went wrong placing that order - please try confirming again.");
           return;
         }

@@ -260,6 +260,34 @@ export async function handleIncomingMessage({ phoneNumber, profileName, text, bu
           return;
         }
 
+        // Atomically claim this confirmation before creating the order.
+        // Message-id dedupe (above, keyed on waMessageId) doesn't cover
+        // every retry path, so if Meta redelivers this same "Confirm" tap
+        // (or two taps race each other), we'd otherwise insert the order
+        // twice. This conditional update only succeeds for whichever
+        // delivery gets there first - it flips stage confirm -> placing_order
+        // and returns the row; a loser sees zero rows matched and bails out
+        // below without ever touching the orders table.
+        const { data: claimed, error: claimError } = await supabase
+          .from("wa_conversations")
+          .update({ stage: "placing_order", last_message_at: new Date().toISOString(), followup_sent: false })
+          .eq("id", conversation.id)
+          .eq("stage", "confirm")
+          .select()
+          .maybeSingle();
+        if (claimError) {
+          console.error("WhatsApp confirm claim failed:", claimError.message);
+          await reply("Sorry, something went wrong placing that order - please try confirming again.");
+          return;
+        }
+        if (!claimed) {
+          // Already claimed by a near-simultaneous delivery of this same
+          // confirm - that other call is placing (or already placed) the
+          // order, so do nothing here to avoid a duplicate.
+          return;
+        }
+        conversation = claimed;
+
         const { data: order, error: orderError } = await supabase
           .from("orders")
           .insert({
@@ -276,6 +304,8 @@ export async function handleIncomingMessage({ phoneNumber, profileName, text, bu
           .single();
         if (orderError) {
           console.error("WhatsApp order insert failed:", orderError.message);
+          // Release the claim so the customer can retry confirming.
+          await updateConversation(conversation.id, { stage: "confirm" });
           await reply("Sorry, something went wrong placing that order - please try confirming again.");
           return;
         }
