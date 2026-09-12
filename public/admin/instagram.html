@@ -27,7 +27,7 @@
     import {
       Lock, LogOut, Instagram, Sparkles, ListChecks, Plus, Pencil, Trash2,
       X, Loader2, Save, User, Hash, ShoppingCart, CheckCircle2, ArrowRight,
-      Plug, Copy, Check, RadioTower, AtSign,
+      Plug, Copy, Check, RadioTower, AtSign, RefreshCw,
     } from "lucide-react";
 
     /* ---------------------------------------------------------------------------
@@ -296,6 +296,8 @@
       const [selectedPageId, setSelectedPageId] = useState("");
       const [looking, setLooking] = useState(false);
       const [saving, setSaving] = useState(false);
+      const [resubscribing, setResubscribing] = useState(false);
+      const [resubscribeMsg, setResubscribeMsg] = useState("");
 
       const load = useCallback(async () => {
         try {
@@ -374,6 +376,20 @@
         }
       }
 
+      async function resubscribe() {
+        setResubscribing(true);
+        setResubscribeMsg("");
+        setError("");
+        try {
+          await api("/api/admin/instagram/connection/resubscribe", { method: "POST" });
+          setResubscribeMsg("Webhook subscription refreshed.");
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setResubscribing(false);
+        }
+      }
+
       if (loading) return <div className="py-16 flex justify-center"><Loader2 className="animate-spin" style={{ color: C.inkSoft }} /></div>;
 
       return (
@@ -391,6 +407,27 @@
                 <div><span style={{ color: C.inkSoft }}>Instagram account:</span> <span style={{ color: C.ink }}>@{connection.igUsername}</span></div>
                 <div><span style={{ color: C.inkSoft }}>Access token:</span> <span style={{ color: C.ink }}>{connection.accessTokenMasked}</span></div>
                 <div><span style={{ color: C.inkSoft }}>App secret:</span> <span style={{ color: C.ink }}>{connection.appSecretSet ? "set" : "not set"}</span></div>
+              </div>
+
+              <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
+                <button
+                  onClick={resubscribe}
+                  disabled={resubscribing}
+                  className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg"
+                  style={{ border: `1px solid ${C.border}`, color: C.inkSoft }}
+                >
+                  {resubscribing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                  Re-subscribe to webhooks
+                </button>
+                <p className="text-xs mt-2" style={{ color: C.inkSoft }}>
+                  Uses the access token already saved above - no need to reconnect. Run this after a webhook field
+                  changes (e.g. button taps stopped working) so Meta re-registers what this app is subscribed to.
+                </p>
+                {resubscribeMsg && (
+                  <p className="text-xs mt-2 flex items-center gap-1" style={{ color: C.olive }}>
+                    <Check size={12} /> {resubscribeMsg}
+                  </p>
+                )}
               </div>
             </Card>
           )}

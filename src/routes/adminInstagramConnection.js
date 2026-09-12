@@ -166,4 +166,29 @@ router.post("/", async (req, res, next) => {
   }
 });
 
+/**
+ * POST /api/admin/instagram/connection/resubscribe
+ * No body needed - re-runs the Meta webhook field subscription using
+ * whatever's already saved in ig_connection (page_id, ig_user_id,
+ * access_token). Useful for picking up a subscribed_fields change (like
+ * adding messaging_postbacks) without having to re-paste a working access
+ * token through /lookup + POST / when the one already saved is still valid.
+ */
+router.post("/resubscribe", async (req, res, next) => {
+  try {
+    const { data, error } = await supabase.from("ig_connection").select("*").eq("id", 1).single();
+    if (error) throw error;
+    if (!data?.access_token || (!data.page_id && !data.ig_user_id)) {
+      return res.status(400).json({ error: "No Instagram connection is saved yet - use /lookup and save a connection first." });
+    }
+
+    const webhookSubscription = await subscribeInstagramWebhook(data.ig_user_id, data.access_token, data.page_id);
+    res.json({ webhookSubscription });
+  } catch (err) {
+    // Surface Meta's rejection (e.g. the saved token turned out to be
+    // invalid/expired after all) as a 502 rather than a generic 500.
+    res.status(502).json({ error: err.message });
+  }
+});
+
 export default router;
