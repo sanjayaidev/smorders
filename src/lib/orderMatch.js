@@ -12,6 +12,20 @@ export async function getActiveMenu() {
   return products;
 }
 
+export async function getKnowledgeBase() {
+  const { data, error } = await supabase
+    .from("wb_knowledge_base")
+    .select("title, content, priority")
+    .eq("active", true)
+    .order("priority", { ascending: false })
+    .limit(30);
+  if (error) {
+    console.error("getKnowledgeBase failed:", error.message);
+    return [];
+  }
+  return data || [];
+}
+
 /**
  * Uses the same grounded-JSON pattern as the web assistant (src/routes/assistant.js):
  * give the model the real menu, ask it to match freeform text to slugs +
@@ -70,13 +84,17 @@ export async function aiFallbackReply(text, products, orderButtonLabel, language
     price: p.price,
     currency: p.currency,
   }));
+  const knowledge = await getKnowledgeBase();
+  const knowledgeText = knowledge.length
+    ? `\nKNOWLEDGE BASE:\n${knowledge.map((entry) => `## ${entry.title}\n${entry.content}`).join("\n\n")}`
+    : "";
   const messages = [
     {
       role: "system",
-      content: `You are a friendly ordering assistant for a food business, chatting over direct message. Answer in ${language}, matching the customer's language. Answer briefly (2-3 sentences max, chat style, no markdown). If they seem to want to order food, tell them to reply "order" or use the menu button. Reply with ONLY this JSON: {"reply": "<text>"}.
+      content: `You are a friendly ordering assistant for a food business, chatting over direct message. Answer in ${language}, matching the customer's language. Use the knowledge base when the question does not match a specific keyword. Only state facts supported by the menu or knowledge base; if the answer is not known, say so briefly and invite the customer to ask about ordering. Answer briefly (2-3 sentences max, chat style, no markdown). If they seem to want to order food, tell them to reply "order" or use the menu button. Reply with ONLY this JSON: {"reply": "<text>"}.
 
 MENU:
-${JSON.stringify(menuForPrompt)}`,
+    ${JSON.stringify(menuForPrompt)}${knowledgeText}`,
     },
     { role: "user", content: text.slice(0, 1000) },
   ];

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { supabase } from "../supabaseClient.js";
 import { callDashScopeChat } from "../lib/dashscope.js";
+import { getKnowledgeBase } from "../lib/orderMatch.js";
 
 const router = Router();
 
@@ -70,6 +71,10 @@ router.post("/chat", async (req, res, next) => {
       currency: p.currency,
       ...(p.weight_note ? { weight_note: p.weight_note } : {}),
     }));
+    const knowledge = await getKnowledgeBase();
+    const knowledgeText = knowledge.length
+      ? `\n\nKNOWLEDGE BASE:\n${knowledge.map((entry) => `## ${entry.title}\n${entry.content}`).join("\n\n")}`
+      : "";
 
     const systemPrompt = `${SYSTEM_PROMPT_INTRO}
 
@@ -78,7 +83,7 @@ Known so far - customerName: ${customerName || "unknown"}, tableNo: ${tableNo ||
 Current cart (slug × quantity): ${cart.length ? cart.map((c) => `${c.slug}×${c.quantity}`).join(", ") : "empty"}.
 
 MENU:
-${JSON.stringify(menuForPrompt)}`;
+${JSON.stringify(menuForPrompt)}${knowledgeText}`;
 
     const trimmedHistory = (Array.isArray(history) ? history : []).slice(-8).map((m) => ({
       role: m.role === "assistant" ? "assistant" : "user",

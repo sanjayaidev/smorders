@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { supabase } from "../supabaseClient.js";
+import { reservedOrderKeyword } from "../lib/orderKeywords.js";
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.post("/", async (req, res, next) => {
     if (!keyword?.trim() || !response?.trim()) {
       return res.status(400).json({ error: "keyword and response are required." });
     }
+    if (reservedOrderKeyword(keyword)) return res.status(400).json({ error: "That keyword is reserved by the order system." });
     if (!["contains", "exact"].includes(matchType)) {
       return res.status(400).json({ error: 'matchType must be "contains" or "exact".' });
     }
@@ -66,6 +68,7 @@ router.patch("/:id", async (req, res, next) => {
     const { keyword, response, matchType, active, sortOrder } = req.body || {};
     const patch = {};
     if (keyword !== undefined) patch.keyword = String(keyword).trim();
+    if (keyword !== undefined && reservedOrderKeyword(keyword)) return res.status(400).json({ error: "That keyword is reserved by the order system." });
     if (response !== undefined) patch.response = String(response).trim();
     if (matchType !== undefined) {
       if (!["contains", "exact"].includes(matchType)) {
