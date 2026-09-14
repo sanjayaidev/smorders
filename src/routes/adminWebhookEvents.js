@@ -4,7 +4,7 @@ import { supabase } from "../supabaseClient.js";
 const router = Router();
 
 /**
- * GET /api/admin/webhook-events?platform=whatsapp|instagram&limit=100
+ * GET /api/admin/webhook-events?platform=whatsapp|instagram|facebook&limit=100
  *
  * Newest first. Backs the admin "Webhook Log" page - shows every inbound
  * webhook POST (real message, status update, or Meta's test payload) for
@@ -13,8 +13,8 @@ const router = Router();
 router.get("/", async (req, res, next) => {
   try {
     const { platform, limit } = req.query;
-    if (platform && !["whatsapp", "instagram"].includes(platform)) {
-      return res.status(400).json({ error: "platform must be 'whatsapp' or 'instagram'." });
+    if (platform && !["whatsapp", "instagram", "facebook"].includes(platform)) {
+      return res.status(400).json({ error: "platform must be 'whatsapp', 'instagram', or 'facebook'." });
     }
 
     const cappedLimit = Math.min(Math.max(Number(limit) || 100, 1), 200);

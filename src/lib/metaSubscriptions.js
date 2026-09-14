@@ -38,3 +38,13 @@ export function subscribeInstagramWebhook(igUserId, accessToken, pageId = null) 
     "Instagram"
   );
 }
+
+/** Subscribes a Facebook Page to Messenger messages and postback events. */
+export function subscribeFacebookWebhook(pageId, accessToken) {
+  const params = new URLSearchParams({ subscribed_fields: "messages,messaging_postbacks" });
+  return subscribe(
+    `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${pageId}/subscribed_apps?${params}`,
+    accessToken,
+    "Facebook Messenger"
+  );
+}

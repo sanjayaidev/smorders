@@ -1,0 +1,8 @@
+import { Router } from "express";
+import { supabase } from "../supabaseClient.js";
+const router = Router();
+router.get("/", async (req, res, next) => { try { const result = await supabase.from("fb_keywords").select("*").order("sort_order", { ascending: true }); if (result.error) throw result.error; res.json({ keywords: result.data }); } catch (error) { next(error); } });
+router.post("/", async (req, res, next) => { try { const { keyword, match_type = "contains", response, active = true, sort_order = 0 } = req.body || {}; if (!keyword?.trim() || !response?.trim()) return res.status(400).json({ error: "keyword and response are required." }); const result = await supabase.from("fb_keywords").insert({ keyword: keyword.trim(), match_type, response: response.trim(), active: Boolean(active), sort_order: Number(sort_order) || 0 }).select().single(); if (result.error) throw result.error; res.status(201).json({ keyword: result.data }); } catch (error) { next(error); } });
+router.put("/:id", async (req, res, next) => { try { const patch = {}; for (const field of ["keyword", "match_type", "response", "active", "sort_order"]) if (req.body?.[field] !== undefined) patch[field] = req.body[field]; const result = await supabase.from("fb_keywords").update(patch).eq("id", req.params.id).select().single(); if (result.error) throw result.error; res.json({ keyword: result.data }); } catch (error) { next(error); } });
+router.delete("/:id", async (req, res, next) => { try { const result = await supabase.from("fb_keywords").delete().eq("id", req.params.id); if (result.error) throw result.error; res.json({ ok: true }); } catch (error) { next(error); } });
+export default router;

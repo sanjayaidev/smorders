@@ -12,7 +12,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.webhook_events (
   id uuid primary key default gen_random_uuid(),
-  platform text not null check (platform in ('whatsapp', 'instagram')),
+  platform text not null check (platform in ('whatsapp', 'instagram', 'facebook')),
   -- Full JSON body Meta sent, so the admin can inspect a test payload's
   -- exact shape without needing log access.
   payload jsonb not null default '{}'::jsonb,

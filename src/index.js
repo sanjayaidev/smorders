@@ -21,9 +21,14 @@ import adminInstagramSettingsRouter from "./routes/adminInstagramSettings.js";
 import adminInstagramKeywordsRouter from "./routes/adminInstagramKeywords.js";
 import adminInstagramConnectionRouter from "./routes/adminInstagramConnection.js";
 import adminInstagramAuthRouter, { instagramAuthCallbackRouter } from "./routes/adminInstagramAuth.js";
+import facebookWebhookRouter from "./routes/facebookWebhook.js";
+import adminFacebookSettingsRouter from "./routes/adminFacebookSettings.js";
+import adminFacebookKeywordsRouter from "./routes/adminFacebookKeywords.js";
+import adminFacebookConnectionRouter from "./routes/adminFacebookConnection.js";
 import adminWebhookEventsRouter from "./routes/adminWebhookEvents.js";
 import { sendPendingFollowups } from "./lib/waBot.js";
 import { sendPendingIgFollowups } from "./lib/igBot.js";
+import { sendPendingFbFollowups } from "./lib/fbBot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -32,7 +37,7 @@ app.set("trust proxy", true);
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || "*" }));
 // Meta signatures cover the exact bytes received. Parse these public routes
 // as raw JSON before the global JSON parser runs.
-app.use(["/webhooks/whatsapp", "/webhooks/instagram", "/api/whatsapp/webhook", "/api/instagram/webhook"], express.raw({
+app.use(["/webhooks/whatsapp", "/webhooks/instagram", "/webhooks/facebook", "/api/whatsapp/webhook", "/api/instagram/webhook", "/api/facebook/webhook"], express.raw({
   type: "application/json",
   limit: "2mb",
   verify: (req, res, buf) => { req.rawBody = buf; },
@@ -64,6 +69,9 @@ app.use("/api/admin/whatsapp/connection", adminAuth, adminWhatsappConnectionRout
 app.use("/api/admin/instagram/settings", adminAuth, adminInstagramSettingsRouter);
 app.use("/api/admin/instagram/keywords", adminAuth, adminInstagramKeywordsRouter);
 app.use("/api/admin/instagram/connection", adminAuth, adminInstagramConnectionRouter);
+app.use("/api/admin/facebook/settings", adminAuth, adminFacebookSettingsRouter);
+app.use("/api/admin/facebook/keywords", adminAuth, adminFacebookKeywordsRouter);
+app.use("/api/admin/facebook/connection", adminAuth, adminFacebookConnectionRouter);
 app.use("/api/admin/webhook-events", adminAuth, adminWebhookEventsRouter);
 app.use("/api/admin/instagram", adminAuth, adminInstagramAuthRouter);
 app.use("/api/auth/instagram", instagramAuthCallbackRouter);
@@ -77,6 +85,8 @@ app.use("/webhooks/whatsapp", whatsappWebhookRouter);
 // by the verify token (GET) and X-Hub-Signature-256 (POST).
 app.use("/api/instagram/webhook", instagramWebhookRouter);
 app.use("/webhooks/instagram", instagramWebhookRouter);
+app.use("/api/facebook/webhook", facebookWebhookRouter);
+app.use("/webhooks/facebook", facebookWebhookRouter);
 
 // Serve the customer-facing frontend (public/index.html) at the root,
 // same-origin as the API - so fetch("/api/menu") just works with no
@@ -101,6 +111,7 @@ const server = app.listen(PORT, "0.0.0.0", () => {
 const followupInterval = setInterval(() => {
   sendPendingFollowups().catch((err) => console.error("sendPendingFollowups crashed:", err));
   sendPendingIgFollowups().catch((err) => console.error("sendPendingIgFollowups crashed:", err));
+  sendPendingFbFollowups().catch((err) => console.error("sendPendingFbFollowups crashed:", err));
 }, 60 * 1000);
 
 function shutdown(signal) {
