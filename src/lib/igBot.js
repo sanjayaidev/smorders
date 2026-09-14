@@ -2,6 +2,7 @@ import { supabase } from "../supabaseClient.js";
 import { generateOrderCode } from "./orderCode.js";
 import { sendInstagramText, sendInstagramButtons } from "./instagram.js";
 import { getActiveMenu, matchItemsWithAI, aiFallbackReply, formatCart, cartTotal } from "./orderMatch.js";
+import { detectMessageLanguage, localizeMessage } from "./messageLanguage.js";
 
 const BUTTON_ORDER = "order";
 const BUTTON_LOCATION = "location";
@@ -81,12 +82,12 @@ async function findKeywordMatch(text) {
   );
 }
 
-async function sendWelcome(conversation, settings) {
-  await sendInstagramText(conversation.sender_id, settings.welcome_message);
-  await sendInstagramButtons(conversation.sender_id, "What would you like to do?", [
-    { id: BUTTON_ORDER, title: settings.order_button_label },
-    { id: BUTTON_LOCATION, title: settings.location_button_label },
-    { id: BUTTON_MENU, title: settings.menu_button_label },
+async function sendWelcome(conversation, settings, language) {
+  await sendInstagramText(conversation.sender_id, await localizeMessage(settings.welcome_message, language));
+  await sendInstagramButtons(conversation.sender_id, await localizeMessage("What would you like to do?", language), [
+    { id: BUTTON_ORDER, title: await localizeMessage(settings.order_button_label, language) },
+    { id: BUTTON_LOCATION, title: await localizeMessage(settings.location_button_label, language) },
+    { id: BUTTON_MENU, title: await localizeMessage(settings.menu_button_label, language) },
   ]);
 }
 
@@ -124,6 +125,8 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
 
   const settings = await getSettings();
   let conversation = await getOrCreateConversation(senderId, profileName);
+  const language = detectMessageLanguage(text || buttonId, conversation.language);
+  conversation = await updateConversation(conversation.id, { language });
 
   // Backfill the conversation_id on the inbound log row now that we have it.
   if (igMessageId) {
@@ -131,8 +134,9 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
   }
 
   const reply = async (body) => {
-    await sendInstagramText(senderId, body);
-    await logMessage(conversation.id, "outbound", body);
+    const localized = await localizeMessage(body, language);
+    await sendInstagramText(senderId, localized);
+    await logMessage(conversation.id, "outbound", localized);
   };
 
   // --- Once-a-day welcome ---------------------------------------------
@@ -142,7 +146,7 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
   // that next message would instantly make the welcome buttons disappear.
   if (conversation.last_greeted_date !== todayStr()) {
     conversation = await updateConversation(conversation.id, { last_greeted_date: todayStr() });
-    await sendWelcome(conversation, settings);
+    await sendWelcome(conversation, settings, language);
     return;
   }
 
@@ -212,7 +216,7 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
       const products = await getActiveMenu();
       let matched;
       try {
-        matched = await matchItemsWithAI(input, products);
+        matched = await matchItemsWithAI(input, products, language);
       } catch (err) {
         console.error("matchItemsWithAI (Instagram) failed:", err.message);
         await reply("Sorry, I had trouble reading that - could you list the items again?");
@@ -238,11 +242,12 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
       if (matched.unmatchedText) {
         summary += `\n\n(I couldn't match "${matched.unmatchedText}" to anything on the menu, so I left it out.)`;
       }
-      await sendInstagramText(senderId, summary);
-      await logMessage(conversation.id, "outbound", summary);
-      await sendInstagramButtons(senderId, "Ready to send this to the kitchen?", [
-        { id: BUTTON_CONFIRM, title: "✅ Confirm" },
-        { id: BUTTON_MODIFY, title: "✏️ Add / change" },
+      const localizedSummary = await localizeMessage(summary, language);
+      await sendInstagramText(senderId, localizedSummary);
+      await logMessage(conversation.id, "outbound", localizedSummary);
+      await sendInstagramButtons(senderId, await localizeMessage("Ready to send this to the kitchen?", language), [
+        { id: BUTTON_CONFIRM, title: await localizeMessage("✅ Confirm", language) },
+        { id: BUTTON_MODIFY, title: await localizeMessage("✏️ Add / change", language) },
       ]);
       return;
     }
@@ -298,7 +303,7 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
             channel: "instagram",
             customer_name: conversation.customer_name,
             table_no: conversation.table_no,
-            lang: "en",
+            lang: language,
             total: cartTotal(cart),
             currency: cart[0].currency,
             status: "on_queue",
@@ -347,7 +352,7 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
       // idle, nothing matched a keyword or a command - fall back to a
       // grounded AI answer rather than going silent.
       const products = await getActiveMenu();
-      const answer = await aiFallbackReply(input, products, settings.order_button_label);
+      const answer = await aiFallbackReply(input, products, settings.order_button_label, language);
       await reply(answer);
     }
   }
@@ -364,7 +369,7 @@ export async function sendPendingIgFollowups() {
 
   const { data: stale, error } = await supabase
     .from("ig_conversations")
-    .select("id, sender_id")
+    .select("id, sender_id, language")
     .neq("stage", "idle")
     .eq("followup_sent", false)
     .lt("last_message_at", cutoff);
@@ -375,7 +380,7 @@ export async function sendPendingIgFollowups() {
 
   for (const convo of stale) {
     try {
-      await sendInstagramText(convo.sender_id, settings.followup_message);
+      await sendInstagramText(convo.sender_id, await localizeMessage(settings.followup_message, convo.language));
     } catch (err) {
       console.error(`Instagram follow-up to ${convo.sender_id} failed:`, err.message);
     } finally {

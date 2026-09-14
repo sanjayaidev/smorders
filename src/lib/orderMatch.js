@@ -19,7 +19,7 @@ export async function getActiveMenu() {
  * list before trusting a single price or name. The model can hallucinate a
  * slug; the price shown to the customer never comes from the model itself.
  */
-export async function matchItemsWithAI(text, products) {
+export async function matchItemsWithAI(text, products, language = "en") {
   const menuForPrompt = products.map((p) => ({
     slug: p.slug,
     name: p.name?.en || Object.values(p.name || {})[0] || p.slug,
@@ -29,7 +29,7 @@ export async function matchItemsWithAI(text, products) {
   const messages = [
     {
       role: "system",
-      content: `Match the customer's freeform order text to items from this menu. Reply with ONLY this JSON shape, no commentary:
+      content: `Match the customer's freeform order text to items from this menu. The customer writes in ${language}; understand that language without translating the reply. Reply with ONLY this JSON shape, no commentary:
 {"items": [{"slug": "<menu slug>", "quantity": <integer>}], "unmatchedText": "<any part of the message you couldn't match to a menu item, or empty string>"}
 Only use slugs that appear in MENU below - never invent one. If quantity isn't stated, use 1.
 
@@ -64,7 +64,7 @@ ${JSON.stringify(menuForPrompt)}`,
 }
 
 /** Freeform Q&A fallback for when nothing else matched - grounded in the real menu so it can't invent prices or items. */
-export async function aiFallbackReply(text, products, orderButtonLabel) {
+export async function aiFallbackReply(text, products, orderButtonLabel, language = "en") {
   const menuForPrompt = products.map((p) => ({
     name: p.name?.en || Object.values(p.name || {})[0] || p.slug,
     price: p.price,
@@ -73,7 +73,7 @@ export async function aiFallbackReply(text, products, orderButtonLabel) {
   const messages = [
     {
       role: "system",
-      content: `You are a friendly ordering assistant for a food business, chatting over direct message. Answer the customer's question briefly (2-3 sentences max, chat style, no markdown). If they seem to want to order food, tell them to reply "order" or use the menu button. Reply with ONLY this JSON: {"reply": "<text>"}.
+      content: `You are a friendly ordering assistant for a food business, chatting over direct message. Answer in ${language}, matching the customer's language. Answer briefly (2-3 sentences max, chat style, no markdown). If they seem to want to order food, tell them to reply "order" or use the menu button. Reply with ONLY this JSON: {"reply": "<text>"}.
 
 MENU:
 ${JSON.stringify(menuForPrompt)}`,

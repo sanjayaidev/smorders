@@ -2,6 +2,7 @@ import { supabase } from "../supabaseClient.js";
 import { generateOrderCode } from "./orderCode.js";
 import { sendFacebookText, sendFacebookButtons } from "./facebook.js";
 import { getActiveMenu, matchItemsWithAI, aiFallbackReply, formatCart, cartTotal } from "./orderMatch.js";
+import { detectMessageLanguage, localizeMessage } from "./messageLanguage.js";
 
 const ORDER = "order";
 const LOCATION = "location";
@@ -41,12 +42,12 @@ async function keyword(text) {
   if (error) throw error;
   return (data || []).find((item) => item.match_type === "exact" ? normalized === item.keyword.trim().toLowerCase() : normalized.includes(item.keyword.trim().toLowerCase())) || null;
 }
-async function welcome(convo, config) {
-  await sendFacebookText(convo.sender_id, config.welcome_message);
-  await sendFacebookButtons(convo.sender_id, "What would you like to do?", [
-    { id: ORDER, title: config.order_button_label },
-    { id: LOCATION, title: config.location_button_label },
-    { id: MENU, title: config.menu_button_label },
+async function welcome(convo, config, language) {
+  await sendFacebookText(convo.sender_id, await localizeMessage(config.welcome_message, language));
+  await sendFacebookButtons(convo.sender_id, await localizeMessage("What would you like to do?", language), [
+    { id: ORDER, title: await localizeMessage(config.order_button_label, language) },
+    { id: LOCATION, title: await localizeMessage(config.location_button_label, language) },
+    { id: MENU, title: await localizeMessage(config.menu_button_label, language) },
   ]);
 }
 async function notifyOwner(config, order, cart) {
@@ -60,12 +61,14 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
   if (fbMessageId && !(await log(null, "inbound", text, fbMessageId))) return;
   const config = await settings();
   let convo = await conversation(senderId, profileName);
+  const language = detectMessageLanguage(text || buttonId, convo.language);
+  convo = await update(convo.id, { language });
   if (fbMessageId) await supabase.from("fb_messages").update({ conversation_id: convo.id }).eq("id", fbMessageId);
-  const reply = async (body) => { await sendFacebookText(senderId, body); await log(convo.id, "outbound", body); };
+  const reply = async (body) => { const localized = await localizeMessage(body, language); await sendFacebookText(senderId, localized); await log(convo.id, "outbound", localized); };
 
   if (convo.last_greeted_date !== today()) {
     convo = await update(convo.id, { last_greeted_date: today() });
-    await welcome(convo, config);
+    await welcome(convo, config, language);
     return;
   }
   const input = (buttonId || text || "").trim();
@@ -88,15 +91,16 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
   if (convo.stage === "ask_table") { if (!input) { await reply("What table number are you at?"); return; } await update(convo.id, { table_no: input, stage: "ask_items" }); await reply('What would you like to order? You can type it naturally, e.g. "2 simit and a tea".'); return; }
   if (convo.stage === "ask_items") {
     let matched;
-    try { matched = await matchItemsWithAI(input, await getActiveMenu()); } catch (error) { console.error("matchItemsWithAI (Facebook) failed:", error.message); await reply("Sorry, I had trouble reading that - could you list the items again?"); return; }
+    try { matched = await matchItemsWithAI(input, await getActiveMenu(), language); } catch (error) { console.error("matchItemsWithAI (Facebook) failed:", error.message); await reply("Sorry, I had trouble reading that - could you list the items again?"); return; }
     const cart = Array.isArray(convo.cart) ? [...convo.cart] : [];
     for (const item of matched.items) { const existing = cart.find((entry) => entry.slug === item.slug); if (existing) existing.quantity += item.quantity; else cart.push(item); }
     if (!cart.length) { await reply("I couldn't match that to anything on the menu - could you try naming the items again?"); return; }
     convo = await update(convo.id, { cart, stage: "confirm" });
     let summary = `Here's your order so far:\n\n${formatCart(cart)}\n\nTotal: ${cartTotal(cart)} ${cart[0].currency}`;
     if (matched.unmatchedText) summary += `\n\n(I couldn't match "${matched.unmatchedText}" to anything on the menu, so I left it out.)`;
-    await sendFacebookText(senderId, summary); await log(convo.id, "outbound", summary);
-    await sendFacebookButtons(senderId, "Ready to send this to the kitchen?", [{ id: CONFIRM, title: "Confirm" }, { id: MODIFY, title: "Add / change" }]);
+    const localizedSummary = await localizeMessage(summary, language);
+    await sendFacebookText(senderId, localizedSummary); await log(convo.id, "outbound", localizedSummary);
+    await sendFacebookButtons(senderId, await localizeMessage("Ready to send this to the kitchen?", language), [{ id: CONFIRM, title: await localizeMessage("Confirm", language) }, { id: MODIFY, title: await localizeMessage("Add / change", language) }]);
     return;
   }
   if (convo.stage === "confirm") {
@@ -108,7 +112,7 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
     if (claimed.error) { console.error("Facebook confirm claim failed:", claimed.error.message); await reply("Sorry, something went wrong placing that order - please try confirming again."); return; }
     if (!claimed.data) return;
     convo = claimed.data;
-    const orderResult = await supabase.from("orders").insert({ order_code: generateOrderCode(), channel: "facebook", customer_name: convo.customer_name, table_no: convo.table_no, lang: "en", total: cartTotal(cart), currency: cart[0].currency, status: "on_queue" }).select().single();
+    const orderResult = await supabase.from("orders").insert({ order_code: generateOrderCode(), channel: "facebook", customer_name: convo.customer_name, table_no: convo.table_no, lang: language, total: cartTotal(cart), currency: cart[0].currency, status: "on_queue" }).select().single();
     if (orderResult.error) { await update(convo.id, { stage: "confirm" }); await reply("Sorry, something went wrong placing that order - please try confirming again."); return; }
     const order = orderResult.data;
     const itemResult = await supabase.from("order_items").insert(cart.map((item) => ({ order_id: order.id, product_id: item.productId, product_name: item.name, quantity: item.quantity, unit_price: item.price })));
@@ -118,14 +122,14 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
     await notifyOwner(config, order, cart);
     return;
   }
-  const answer = await aiFallbackReply(input, await getActiveMenu(), config.order_button_label);
+  const answer = await aiFallbackReply(input, await getActiveMenu(), config.order_button_label, language);
   await reply(answer);
 }
 
 export async function sendPendingFbFollowups() {
   const config = await settings();
   const cutoff = new Date(Date.now() - config.followup_delay_minutes * 60 * 1000).toISOString();
-  const result = await supabase.from("fb_conversations").select("id, sender_id").neq("stage", "idle").neq("stage", "placing_order").eq("followup_sent", false).lt("last_message_at", cutoff);
+  const result = await supabase.from("fb_conversations").select("id, sender_id, language").neq("stage", "idle").neq("stage", "placing_order").eq("followup_sent", false).lt("last_message_at", cutoff);
   if (result.error) { console.error("sendPendingFbFollowups query failed:", result.error.message); return; }
-  for (const convo of result.data || []) { try { await sendFacebookText(convo.sender_id, config.followup_message); } catch (error) { console.error(`Facebook follow-up to ${convo.sender_id} failed:`, error.message); } finally { await supabase.from("fb_conversations").update({ followup_sent: true }).eq("id", convo.id); } }
+  for (const convo of result.data || []) { try { await sendFacebookText(convo.sender_id, await localizeMessage(config.followup_message, convo.language)); } catch (error) { console.error(`Facebook follow-up to ${convo.sender_id} failed:`, error.message); } finally { await supabase.from("fb_conversations").update({ followup_sent: true }).eq("id", convo.id); } }
 }
