@@ -25,6 +25,7 @@ import facebookWebhookRouter from "./routes/facebookWebhook.js";
 import adminFacebookSettingsRouter from "./routes/adminFacebookSettings.js";
 import adminFacebookKeywordsRouter from "./routes/adminFacebookKeywords.js";
 import adminFacebookConnectionRouter from "./routes/adminFacebookConnection.js";
+import adminFacebookAuthRouter, { facebookAuthCallbackRouter } from "./routes/adminFacebookAuth.js";
 import adminWebhookEventsRouter from "./routes/adminWebhookEvents.js";
 import { sendPendingFollowups } from "./lib/waBot.js";
 import { sendPendingIgFollowups } from "./lib/igBot.js";
@@ -72,9 +73,11 @@ app.use("/api/admin/instagram/connection", adminAuth, adminInstagramConnectionRo
 app.use("/api/admin/facebook/settings", adminAuth, adminFacebookSettingsRouter);
 app.use("/api/admin/facebook/keywords", adminAuth, adminFacebookKeywordsRouter);
 app.use("/api/admin/facebook/connection", adminAuth, adminFacebookConnectionRouter);
+app.use("/api/admin/facebook", adminAuth, adminFacebookAuthRouter);
 app.use("/api/admin/webhook-events", adminAuth, adminWebhookEventsRouter);
 app.use("/api/admin/instagram", adminAuth, adminInstagramAuthRouter);
 app.use("/api/auth/instagram", instagramAuthCallbackRouter);
+app.use("/api/auth/facebook", facebookAuthCallbackRouter);
 
 // Meta's webhook - no adminAuth (Meta can't send our admin password), it's
 // gated instead by the verify token (GET) and X-Hub-Signature-256 (POST).

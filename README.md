@@ -80,6 +80,14 @@ Manual connection values can be configured through the admin Instagram page. The
 
 For production OAuth, set `APP_BASE_URL` to `https://smorder.up.railway.app`.
 
+### Facebook Page Login
+
+Facebook Page OAuth uses `FACEBOOK_APP_ID` and `FACEBOOK_APP_SECRET`. Set `APP_BASE_URL` to the public site URL and add this callback URL to the Meta app:
+
+`https://smorder.up.railway.app/api/auth/facebook/callback`
+
+Open `/admin/facebook.html`, sign in to the admin dashboard, and choose **Continue with Facebook**. Meta returns the Pages the user manages; the first Page with a Page access token is saved and subscribed to Messenger webhooks automatically.
+
 ### Optional services
 
 | Variable | Purpose |
