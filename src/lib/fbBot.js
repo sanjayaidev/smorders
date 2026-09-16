@@ -61,7 +61,7 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
   if (fbMessageId && !(await log(null, "inbound", text, fbMessageId))) return;
   const config = await settings();
   let convo = await conversation(senderId, profileName);
-  const language = detectMessageLanguage(text || buttonId, convo.language);
+  const language = detectMessageLanguage(text, convo.language);
   convo = await update(convo.id, { language });
   if (fbMessageId) await supabase.from("fb_messages").update({ conversation_id: convo.id }).eq("id", fbMessageId);
   const reply = async (body) => { const localized = await localizeMessage(body, language); await sendFacebookText(senderId, localized); await log(convo.id, "outbound", localized); };

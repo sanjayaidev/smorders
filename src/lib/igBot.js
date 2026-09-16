@@ -125,7 +125,7 @@ export async function handleIncomingMessage({ senderId, profileName, text, butto
 
   const settings = await getSettings();
   let conversation = await getOrCreateConversation(senderId, profileName);
-  const language = detectMessageLanguage(text || buttonId, conversation.language);
+  const language = detectMessageLanguage(text, conversation.language);
   conversation = await updateConversation(conversation.id, { language });
 
   // Backfill the conversation_id on the inbound log row now that we have it.
