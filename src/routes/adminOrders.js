@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { supabase } from "../supabaseClient.js";
+import { notifyCustomerOfStatusChange } from "../lib/customerNotify.js";
 
 const router = Router();
 
@@ -58,6 +59,9 @@ router.get("/", async (req, res, next) => {
  *
  * cancellationReason is required (and stored) when status is "cancelled",
  * and cleared for any other status.
+ *
+ * When the status actually changes and the order came from WhatsApp,
+ * Instagram or Messenger, the customer is messaged (see lib/customerNotify.js).
  */
 router.patch("/:id", async (req, res, next) => {
   try {
@@ -70,6 +74,14 @@ router.patch("/:id", async (req, res, next) => {
       return res.status(400).json({ error: "cancellationReason is required when cancelling an order." });
     }
 
+    const { data: existing, error: existingError } = await supabase
+      .from("orders")
+      .select("id, status")
+      .eq("id", req.params.id)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (!existing) return res.status(404).json({ error: "Order not found." });
+
     const { data: order, error } = await supabase
       .from("orders")
       .update({
@@ -80,9 +92,13 @@ router.patch("/:id", async (req, res, next) => {
       .select()
       .single();
     if (error) throw error;
-    if (!order) return res.status(404).json({ error: "Order not found." });
 
     res.json({ order });
+
+    // Let chat customers know the kitchen moved their order along. Runs after
+    // the response so a slow or failing message never delays the admin's
+    // click; notifyCustomerOfStatusChange never throws.
+    if (existing.status !== status) void notifyCustomerOfStatusChange(order);
   } catch (err) {
     next(err);
   }

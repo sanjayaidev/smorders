@@ -99,10 +99,37 @@ Open `/admin/facebook.html`, sign in to the admin dashboard, and choose **Contin
 | `ALIBABA_MODEL` | Assistant model; uses the provider default when unset |
 | `ALIBABA_REGION` | Alibaba API region |
 | `ALIBABA_WORKSPACE_ID` | Alibaba workspace ID |
+| `CUSTOMER_STATUS_NOTIFICATIONS` | Set to `off` to stop messaging chat customers when the kitchen changes their order status; on by default |
+| `BOT_DRAFT_TTL_HOURS` | Hours after which an unfinished chat order is discarded when the customer comes back; defaults to `6` |
+
+## Chat bots (WhatsApp, Instagram, Messenger)
+
+All three bots share one engine, `src/lib/botEngine.js`; `waBot.js`, `igBot.js` and `fbBot.js` only describe the channel (tables, send functions, message-length limit). The customer's language (English, Russian, Kazakh, Turkish) is detected per conversation and fixed bot messages come from `src/lib/botI18n.js`. Admin-written text (welcome, keyword replies, follow-up, button labels) is translated with the AI and cached.
+
+Customers can type these at any point, in any of the four languages:
+
+| Command | Examples | What it does |
+| --- | --- | --- |
+| Order | `order`, `заказ`, `тапсырыс`, `sipariş` | Starts Name -> Table -> Items -> Confirm |
+| Menu | `menu`, `меню`, `мәзір`, `menü`, `prices` | Sends the live menu with prices, in their language |
+| Status | `status`, `статус`, `күй`, `durum`, or an order code like `SIM-A3F92B` | Shows their recent orders and each order's status |
+| Cart | `cart`, `корзина`, `себет`, `sepet` | Shows what they've added so far |
+| Clear | `clear cart`, `очистить корзину` | Empties the cart |
+| Back | `back`, `назад`, `артқа`, `geri` | Goes one step back |
+| Cancel / reset | `cancel`, `отмена`, `бас тарту`, `iptal` | Clears the unfinished order |
+| Help | `help`, `помощь`, `көмек`, `yardım` | Lists the commands |
+
+While ordering, the customer sees the menu right after giving a table number and can type naturally: `2 classic simit and 1 baklava`, then `remove the simit` or `make it 3`. On the summary they can tap Confirm, Add / change or Cancel, or just type a change. An unfinished order is discarded after `BOT_DRAFT_TTL_HOURS` of silence.
+
+Free-form questions such as `адрес`, `saat kaça kadar açıksınız` or `where are you` reach the admin keyword rules named `location`, `hours`, `wifi` and `phone` (create those keywords in the admin panel to use them). The built-in command words above are reserved and cannot be used as admin keywords.
+
+When an admin moves an order to Preparing, Delivered or Cancelled, the customer who ordered through WhatsApp, Instagram or Messenger is messaged automatically (in their language). Meta only allows this within 24 hours of the customer's last message.
+
+Run the tests with `npm test`.
 
 ## Supabase setup
 
-Run every SQL migration in `supabase/migrations/` in filename order. The migrations create the order lifecycle, WhatsApp and Instagram bot tables, connection rows, and `webhook_events`.
+Run every SQL migration in `supabase/migrations/` in filename order. The two `20260915_*` migrations add `orders.customer_ref` (order status and notifications), extend the reserved-keyword trigger, and fill in the Russian menu translations; the bots keep working if `customer_ref` has not been added yet, but status lookups stay empty until it is. The migrations create the order lifecycle, WhatsApp and Instagram bot tables, connection rows, and `webhook_events`.
 
 The `webhook_events` table is important: it stores every webhook POST, including Meta dashboard tests, status-only updates, zero-message payloads, failed signature checks, and processing errors.
 
