@@ -112,14 +112,15 @@ callbackRouter.get("/callback", async (req, res) => {
     const igUserId = profile?.user_id || profile?.id;
     if (!profileRes.ok || !igUserId) throw new Error(errorMessage(profile, "Instagram business profile lookup failed."));
 
-    const { error } = await supabase.from("ig_connection").update({
+    const { error } = await supabase.from("ig_connection").upsert({
+      id: 1,
       page_id: null,
       ig_user_id: igUserId,
       ig_username: profile.username || null,
       access_token: longLivedPayload.access_token,
       app_secret: appSecret,
       updated_at: new Date().toISOString(),
-    }).eq("id", 1);
+    }, { onConflict: "id" });
     if (error) throw error;
     invalidateIgConnectionCache();
     try {

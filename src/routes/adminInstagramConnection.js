@@ -39,16 +39,16 @@ function extractInstagramUsername(input) {
  */
 router.get("/", async (req, res, next) => {
   try {
-    const { data, error } = await supabase.from("ig_connection").select("*").eq("id", 1).single();
+    const { data, error } = await supabase.from("ig_connection").select("*").eq("id", 1).maybeSingle();
     if (error) throw error;
     res.json({
       connection: {
-        pageId: data.page_id,
-        igUserId: data.ig_user_id,
-        igUsername: data.ig_username,
-        accessTokenMasked: maskToken(data.access_token),
-        hasAccessToken: Boolean(data.access_token),
-        appSecretSet: Boolean(data.app_secret),
+        pageId: data?.page_id || null,
+        igUserId: data?.ig_user_id || null,
+        igUsername: data?.ig_username || null,
+        accessTokenMasked: maskToken(data?.access_token),
+        hasAccessToken: Boolean(data?.access_token),
+        appSecretSet: Boolean(data?.app_secret),
         // Same env-only pattern as WhatsApp's verify token - not stored in
         // the DB, not returned here; see lib/igConnection.js.
         webhookUrl: `${publicBaseUrl(req)}/api/instagram/webhook`,
@@ -136,7 +136,11 @@ router.post("/", async (req, res, next) => {
     };
     if (appSecret !== undefined) patch.app_secret = appSecret?.trim() || null;
 
-    const { data, error } = await supabase.from("ig_connection").update(patch).eq("id", 1).select().single();
+    const { data, error } = await supabase
+      .from("ig_connection")
+      .upsert({ id: 1, ...patch }, { onConflict: "id" })
+      .select()
+      .single();
     if (error) throw error;
 
     invalidateIgConnectionCache();
@@ -176,7 +180,7 @@ router.post("/", async (req, res, next) => {
  */
 router.post("/resubscribe", async (req, res, next) => {
   try {
-    const { data, error } = await supabase.from("ig_connection").select("*").eq("id", 1).single();
+    const { data, error } = await supabase.from("ig_connection").select("*").eq("id", 1).maybeSingle();
     if (error) throw error;
     if (!data?.access_token || (!data.page_id && !data.ig_user_id)) {
       return res.status(400).json({ error: "No Instagram connection is saved yet - use /lookup and save a connection first." });
