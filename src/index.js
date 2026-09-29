@@ -8,6 +8,10 @@ import ordersRouter from "./routes/orders.js";
 import uploadRouter from "./routes/upload.js";
 import assistantRouter from "./routes/assistant.js";
 import { adminAuth } from "./middleware/adminAuth.js";
+import {
+  assistantLimiter, orderCreateLimiter, orderLookupLimiter, orderLookupFailLimiter,
+  adminLoginLimiter, adminApiFailLimiter,
+} from "./middleware/rateLimits.js";
 import adminSessionRouter from "./routes/adminSession.js";
 import adminOrdersRouter from "./routes/adminOrders.js";
 import adminProductsRouter from "./routes/adminProducts.js";
@@ -34,7 +38,9 @@ import { sendPendingFbFollowups } from "./lib/fbBot.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-app.set("trust proxy", true);
+// Number of reverse proxies in front of the app (Railway/Render/etc = 1).
+// `true` would trust a client-supplied X-Forwarded-For and defeat rate limits.
+app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS ?? 1));
 
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN || "*" }));
 // Meta signatures cover the exact bytes received. Parse these public routes
@@ -52,16 +58,19 @@ app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 app.use("/api/menu", menuRouter);
+app.post("/api/orders", orderCreateLimiter);
+app.get("/api/orders/:orderCode", orderLookupLimiter, orderLookupFailLimiter);
 app.use("/api/orders", ordersRouter);
-app.use("/api/assistant", assistantRouter);
+app.use("/api/assistant", assistantLimiter, assistantRouter);
 // Base64 image payloads run bigger than express.json()'s 100kb default, so
 // this route gets its own limit rather than raising it globally. It's
 // gated behind adminAuth since it spends the server's IMGBB_API_KEY quota.
-app.use("/api/upload", adminAuth, express.json({ limit: "40mb" }), uploadRouter);
+app.use("/api/upload", adminApiFailLimiter, adminAuth, express.json({ limit: "40mb" }), uploadRouter);
 
 // Admin dashboard API. /login just checks the password; everything else
 // requires "Authorization: Bearer <ADMIN_PASS>" via adminAuth.
-app.use("/api/admin/login", adminSessionRouter);
+app.use("/api/admin/login", adminLoginLimiter, adminSessionRouter);
+app.use("/api/admin", adminApiFailLimiter);
 app.use("/api/admin/orders", adminAuth, adminOrdersRouter);
 app.use("/api/admin/products", adminAuth, adminProductsRouter);
 app.use("/api/admin/categories", adminAuth, adminCategoriesRouter);

@@ -1,3 +1,4 @@
+import { verifyMetaSignature } from "./metaSignature.js";
 import { createHmac, timingSafeEqual } from "crypto";
 import "dotenv/config";
 import { getFbConnection } from "./fbConnection.js";
@@ -37,11 +38,5 @@ export function sendFacebookButtons(senderId, bodyText, buttons) {
 
 export async function verifyFacebookSignature(rawBody, signatureHeader) {
   const { appSecret } = await getFbConnection();
-  if (!appSecret) { console.warn("Facebook App Secret not set - skipping webhook signature verification."); return true; }
-  if (!signatureHeader?.startsWith("sha256=") || !Buffer.isBuffer(rawBody)) return false;
-  const expected = createHmac("sha256", appSecret).update(rawBody).digest("hex");
-  const provided = signatureHeader.slice("sha256=".length);
-  const a = Buffer.from(expected, "hex");
-  const b = Buffer.from(provided, "hex");
-  return a.length === b.length && timingSafeEqual(a, b);
+  return verifyMetaSignature({ platform: "Facebook", appSecret, rawBody, signatureHeader });
 }

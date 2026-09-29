@@ -32,6 +32,13 @@ router.post("/", async (req, res, next) => {
       });
     }
 
+    if (items.length > 30) {
+      return res.status(400).json({ error: "Too many items in one order (max 30)." });
+    }
+    if (!["en", "tr", "kk", "ru"].includes(lang)) {
+      return res.status(400).json({ error: "Unsupported lang." });
+    }
+
     const productIds = items.map((i) => i.productId);
     const { data: products, error: prodError } = await supabase
       .from("products")
@@ -46,7 +53,7 @@ router.post("/", async (req, res, next) => {
 
     const lines = items.map((i) => {
       const product = products.find((p) => p.id === i.productId);
-      const quantity = Math.max(1, parseInt(i.quantity, 10) || 1);
+      const quantity = Math.min(50, Math.max(1, parseInt(i.quantity, 10) || 1));
       return {
         product_id: product.id,
         product_name: product.name?.[lang] ?? product.name?.en ?? "",

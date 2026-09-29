@@ -1,3 +1,4 @@
+import { verifyMetaSignature } from "./metaSignature.js";
 import { createHmac, timingSafeEqual } from "crypto";
 import "dotenv/config";
 import { getIgConnection } from "./igConnection.js";
@@ -102,23 +103,10 @@ export function sendInstagramButtons(senderId, bodyText, buttons) {
 
 /**
  * Verifies Meta's X-Hub-Signature-256 header against the raw request body,
- * using the Meta App Secret. Skips verification (with a console warning) if
- * no App Secret is configured, so setups mid-onboarding aren't blocked - but
- * this should be set once you're live. Identical scheme to WhatsApp's.
+ * using the Meta App Secret. Rejects the webhook if no App Secret is configured
+ * (see metaSignature.js).
  */
 export async function verifyInstagramSignature(rawBody, signatureHeader) {
   const { appSecret } = await getIgConnection();
-  if (!appSecret) {
-    console.warn("Instagram App Secret not set - skipping webhook signature verification.");
-    return true;
-  }
-  if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
-  if (!Buffer.isBuffer(rawBody)) return false;
-
-  const expected = createHmac("sha256", appSecret).update(rawBody).digest("hex");
-  const provided = signatureHeader.slice("sha256=".length);
-
-  const a = Buffer.from(expected, "hex");
-  const b = Buffer.from(provided, "hex");
-  return a.length === b.length && timingSafeEqual(a, b);
+  return verifyMetaSignature({ platform: "Instagram", appSecret, rawBody, signatureHeader });
 }

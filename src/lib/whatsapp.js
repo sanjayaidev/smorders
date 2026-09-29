@@ -1,3 +1,4 @@
+import { verifyMetaSignature } from "./metaSignature.js";
 import { createHmac, timingSafeEqual } from "crypto";
 import "dotenv/config";
 import { getWaConnection } from "./waConnection.js";
@@ -91,17 +92,5 @@ export function markWhatsAppMessageRead(messageId) {
  */
 export async function verifyWhatsAppSignature(rawBody, signatureHeader) {
   const { appSecret } = await getWaConnection();
-  if (!appSecret) {
-    console.warn("WhatsApp App Secret not set - skipping webhook signature verification.");
-    return true;
-  }
-  if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
-  if (!Buffer.isBuffer(rawBody)) return false;
-
-  const expected = createHmac("sha256", appSecret).update(rawBody).digest("hex");
-  const provided = signatureHeader.slice("sha256=".length);
-
-  const a = Buffer.from(expected, "hex");
-  const b = Buffer.from(provided, "hex");
-  return a.length === b.length && timingSafeEqual(a, b);
+  return verifyMetaSignature({ platform: "WhatsApp", appSecret, rawBody, signatureHeader });
 }
